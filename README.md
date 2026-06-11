@@ -1,25 +1,73 @@
+GemmaBuddy
+===========
 
-Installation information
-=======
+GemmaBuddy is a NeoForge 1.21.1 read-only play-buddy mod for local singleplayer and LAN worlds.
 
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
+Features in this milestone:
 
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
+- `/gemmabuddy status`
+- `/gemmabuddy inventory`
+- `/gemmabuddy see`
+- `/gemmabuddy ask <message>`
+- `gemma status`
+- `gemma inventory`
+- `gemma what do you see`
+- `gemma what do we do`
+- `gemma ask <message>`
+- GemmaBuddy chat screen on `G`
+- Custom GemmaBuddy companion entity with `/gemmabuddy spawn`, `/gemmabuddy despawn`, and `/gemmabuddy where`
+- LM Studio chat completion support at `http://localhost:1234/v1/chat/completions`
 
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
+Requirements:
 
-Mapping Names:
-============
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
+- Java 21
+- NeoForge 1.21.1 world or instance
+- LM Studio running locally if you want the `ask` feature
 
-Additional Resources: 
-==========
-Community Documentation: https://docs.neoforged.net/  
-NeoForged Discord: https://discord.neoforged.net/
+Run locally from this folder:
+
+```powershell
+.\gradlew runClient
+```
+
+Build the jar:
+
+```powershell
+.\gradlew build
+```
+
+The built jar is written to:
+
+```text
+build\libs\gemmabuddy-0.1.0.jar
+```
+
+Copy that jar into your PrismLauncher instance `mods` folder, for example:
+
+```text
+%APPDATA%\.prismlauncher\instances\<your-instance>\minecraft\mods
+```
+
+If your PrismLauncher instance uses a different root, place the jar in that instance's `mods` directory.
+
+## Notes
+
+- The `G` key opens the GemmaBuddy chat screen.
+- The mod is read-only for this milestone: no movement, mining, inventory changes, or world edits.
+- If you want LM Studio to use a specific local model, set `GEMMABUDDY_LM_MODEL` or `LLM_MODEL` before launching Minecraft.
+- GeckoLib is included for future animated companion work; the current visible companion uses the lighter vanilla slim-humanoid renderer for stability.
+
+## Quick Test List
+
+In Minecraft chat, try:
+
+```text
+/gemmabuddy status
+/gemmabuddy inventory
+/gemmabuddy see
+/gemmabuddy ask what should we do first?
+gemma status
+gemma inventory
+gemma what do you see
+gemma what do we do
+```

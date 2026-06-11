@@ -3,6 +3,7 @@
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/**/build/
+backups/
 
 ### IntelliJ IDEA ###
 .idea/
@@ -38,3 +39,4 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+config/gemmabuddy/knowledge/
