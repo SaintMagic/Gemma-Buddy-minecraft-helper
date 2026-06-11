@@ -68,7 +68,7 @@ public final class GemmaBuddyClient {
             return;
         }
 
-        GemmaBuddyScreen.addHistory("GemmaBuddy: " + message.substring(GemmaBuddy.CHAT_PREFIX.length()).trim());
+        GemmaBuddyScreen.addGemmaMessage(message.substring(GemmaBuddy.CHAT_PREFIX.length()).trim());
     }
 
     public static void openScreen() {
@@ -94,7 +94,7 @@ public final class GemmaBuddyClient {
 
     public static void toggleVoiceCapture() {
         if (!isVoiceControlEnabled()) {
-            GemmaBuddyScreen.addHistory("GemmaBuddy: Voice control is disabled. Enable it in config.json to use it.");
+            GemmaBuddyScreen.addSystemMessage("Voice control is disabled. Enable it in config.json to use it.");
             return;
         }
         VOICE_CONTROL.toggleRecording();
@@ -103,13 +103,13 @@ public final class GemmaBuddyClient {
     public static void applyVoiceTranscript(String transcript) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
-            GemmaBuddyScreen.addHistory("GemmaBuddy: Voice transcript received, but no world is open.");
+            GemmaBuddyScreen.addErrorMessage("Voice transcript received, but no world is open.");
             return;
         }
 
         String cleaned = transcript == null ? "" : transcript.trim();
         if (cleaned.isBlank()) {
-            GemmaBuddyScreen.addHistory("GemmaBuddy: Voice transcript was empty.");
+            GemmaBuddyScreen.addSystemMessage("Voice transcript was empty.");
             return;
         }
 
@@ -118,8 +118,8 @@ public final class GemmaBuddyClient {
         }
 
         LOGGER.info("GemmaBuddy voice transcript received='{}' queuedCommand='{}'", transcript, cleaned);
-        GemmaBuddyScreen.addHistory("Voice: " + cleaned);
-        GemmaBuddyScreen.addHistory("GemmaBuddy: Voice transcript inserted. Press Enter to submit or edit it first.");
+        GemmaBuddyScreen.addSystemMessage("Voice: " + cleaned);
+        GemmaBuddyScreen.addSystemMessage("Voice transcript inserted. Press Enter to submit or edit it first.");
 
         if (!(minecraft.screen instanceof GemmaBuddyScreen screen)) {
             minecraft.setScreen(new GemmaBuddyScreen());
@@ -133,7 +133,7 @@ public final class GemmaBuddyClient {
     public static void sendGemmaMessage(String message) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
-            GemmaBuddyScreen.addHistory("GemmaBuddy: You are not connected to a world.");
+            GemmaBuddyScreen.addErrorMessage("You are not connected to a world.");
             return;
         }
 
@@ -144,11 +144,11 @@ public final class GemmaBuddyClient {
 
         String toSend = cleaned.toLowerCase().startsWith("gemma ") ? cleaned : "gemma " + cleaned;
         LOGGER.info("GemmaBuddy final routed command='{}'", toSend);
-        GemmaBuddyScreen.addHistory("You: " + toSend);
+        GemmaBuddyScreen.addUserMessage(toSend);
 
         ClientPacketListener connection = minecraft.player.connection;
         if (connection == null) {
-            GemmaBuddyScreen.addHistory("GemmaBuddy: No server connection is available.");
+            GemmaBuddyScreen.addErrorMessage("No server connection is available.");
             return;
         }
 

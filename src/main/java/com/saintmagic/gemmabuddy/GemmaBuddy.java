@@ -24,6 +24,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
+import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 
 /**
  * GemmaBuddy server-side core and coordinator.
@@ -54,6 +55,7 @@ public final class GemmaBuddy {
     public GemmaBuddy(IEventBus modEventBus) {
         CONFIG.load();
         GemmaBuddyEntities.ENTITY_TYPES.register(modEventBus);
+        modEventBus.addListener(this::onEntityAttributeCreation);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
         LOGGER.info("GemmaBuddy loaded. LM Studio endpoint: {}", LM_STUDIO_URL);
@@ -97,6 +99,10 @@ public final class GemmaBuddy {
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
         COMMAND_ROUTER.registerSlashCommands(event.getDispatcher());
+    }
+
+    private void onEntityAttributeCreation(EntityAttributeCreationEvent event) {
+        event.put(GemmaBuddyEntities.GEMMA_BUDDY.get(), GemmaBuddyEntity.createAttributes().build());
     }
 
     private void onServerChat(ServerChatEvent event) {

@@ -2,6 +2,8 @@ package com.saintmagic.gemmabuddy;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import org.slf4j.Logger;
 
@@ -16,6 +18,7 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -348,38 +351,67 @@ public final class CommandRouter {
         String knowledgeContext = knowledge.buildKnowledgeContext(normalizedQuery);
         goals.setGoal("Planning", List.of("Read the current state", "Answer in one short line"), true);
         goals.updateProgress("Asking LM Studio");
+        GemmaBuddy.sendLine(player, "Gemma is thinking...");
 
-        try {
-            String systemPrompt = """
-                    You are GemmaBuddy, a Minecraft play-buddy.
-                    You may think briefly if needed, but you must always provide a final answer in message.content.
-                    The final answer must be one short Minecraft in-game chat sentence.
-                    Do not include markdown, bullet points, code fences, or raw reasoning in the final answer.
-                    """;
-
-            StringBuilder userPrompt = new StringBuilder();
-            userPrompt.append("Game state:\n").append(snapshot.compactSummary()).append('\n');
-            if (!knowledgeContext.isBlank()) {
-                userPrompt.append("\nRelevant local mod knowledge:\n").append(knowledgeContext).append('\n');
+        MinecraftServer server = player.getServer();
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return completePlanningReply(snapshot, knowledgeContext, normalizedQuery);
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
             }
-            userPrompt.append("\nPlayer message:\n").append(normalizedQuery).append('\n');
+        }).whenComplete((reply, error) -> {
+            Runnable deliver = () -> {
+                if (error != null) {
+                    Throwable cause = error instanceof CompletionException && error.getCause() != null
+                            ? error.getCause()
+                            : error;
+                    LOGGER.error("GemmaBuddy planning request failed for '{}'", normalizedQuery, cause);
+                    goals.clear();
+                    GemmaBuddy.sendError(player, "LM Studio had trouble answering: " + friendlyError(cause)
+                            + ". Check the log for details.");
+                    return;
+                }
 
-            LmStudioResponse response = llm.complete(systemPrompt, userPrompt.toString(), PLANNING_MAX_TOKENS);
-            String reply = cleanReply(response.content());
-            if (reply.isBlank() && !normalize(response.reasoningContent()).isBlank()) {
-                reply = requestFinalAnswerFromReasoning(response.reasoningContent());
-            }
-            if (reply.isBlank()) {
-                reply = "I thought too long and forgot to answer. Ask me again shorter.";
-            }
+                GemmaBuddy.sendLine(player, reply);
+                goals.markComplete(reply);
+            };
 
-            GemmaBuddy.sendLine(player, reply);
-            goals.markComplete(reply);
-            return ActionResult.success(reply);
-        } catch (Exception ex) {
-            goals.clear();
-            throw ex;
+            if (server != null) {
+                server.execute(deliver);
+            } else {
+                deliver.run();
+            }
+        });
+
+        return ActionResult.success("Planning request started.");
+    }
+
+    private String completePlanningReply(StateSnapshot snapshot, String knowledgeContext, String normalizedQuery)
+            throws Exception {
+        String systemPrompt = """
+                You are GemmaBuddy, a Minecraft play-buddy.
+                You may think briefly if needed, but you must always provide a final answer in message.content.
+                The final answer must be one short Minecraft in-game chat sentence.
+                Do not include markdown, bullet points, code fences, or raw reasoning in the final answer.
+                """;
+
+        StringBuilder userPrompt = new StringBuilder();
+        userPrompt.append("Game state:\n").append(snapshot.compactSummary()).append('\n');
+        if (!knowledgeContext.isBlank()) {
+            userPrompt.append("\nRelevant local mod knowledge:\n").append(knowledgeContext).append('\n');
         }
+        userPrompt.append("\nPlayer message:\n").append(normalizedQuery).append('\n');
+
+        LmStudioResponse response = llm.complete(systemPrompt, userPrompt.toString(), PLANNING_MAX_TOKENS);
+        String reply = cleanReply(response.content());
+        if (reply.isBlank() && !normalize(response.reasoningContent()).isBlank()) {
+            reply = requestFinalAnswerFromReasoning(response.reasoningContent());
+        }
+        if (reply.isBlank()) {
+            return "I thought too long and forgot to answer. Ask me again shorter.";
+        }
+        return reply;
     }
 
     private ActionResult handleLmStudioTest(ServerPlayer player) {
@@ -540,7 +572,7 @@ public final class CommandRouter {
         return ActionResult.success("Help shown.");
     }
 
-    private String friendlyError(Exception ex) {
+    private String friendlyError(Throwable ex) {
         String message = ex.getMessage();
         if (message == null || message.isBlank()) {
             return ex.getClass().getSimpleName();

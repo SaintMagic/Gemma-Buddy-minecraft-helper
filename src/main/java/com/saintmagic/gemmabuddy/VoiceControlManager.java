@@ -94,7 +94,7 @@ public final class VoiceControlManager {
 
     public void toggleRecording() {
         if (!GemmaBuddy.config().enableVoiceControl()) {
-            GemmaBuddyScreen.addHistory("GemmaBuddy: Voice control is disabled in config.");
+            GemmaBuddyScreen.addSystemMessage("Voice control is disabled in config.");
             return;
         }
 
@@ -130,7 +130,7 @@ public final class VoiceControlManager {
         if (GemmaBuddy.config().enableVoiceControl()) {
             voiceState.set(VoiceState.EXPERIMENTAL);
         }
-        GemmaBuddyScreen.addHistory("GemmaBuddy: Recording voice...");
+        GemmaBuddyScreen.addSystemMessage("Recording voice...");
         executor.submit(this::captureAndTranscribe);
     }
 
@@ -152,7 +152,7 @@ public final class VoiceControlManager {
                 recording.set(false);
                 voiceState.set(VoiceState.ERROR);
                 lastError.set("Voice capture is not supported on this system.");
-                GemmaBuddyScreen.addHistory("GemmaBuddy: Voice capture is not supported on this system.");
+                GemmaBuddyScreen.addErrorMessage("Voice capture is not supported on this system.");
                 return;
             }
 
@@ -176,7 +176,7 @@ public final class VoiceControlManager {
             if (buffer.size() == 0) {
                 voiceState.set(VoiceState.ERROR);
                 lastError.set("No voice was captured.");
-                GemmaBuddyScreen.addHistory("GemmaBuddy: No voice was captured.");
+                GemmaBuddyScreen.addSystemMessage("No voice was captured.");
                 return;
             }
 
@@ -194,7 +194,7 @@ public final class VoiceControlManager {
             lastError.set("");
 
             if (transcript.isBlank()) {
-                GemmaBuddyScreen.addHistory("GemmaBuddy: Voice transcription returned nothing.");
+                GemmaBuddyScreen.addSystemMessage("Voice transcription returned nothing.");
                 return;
             }
 
@@ -212,7 +212,7 @@ public final class VoiceControlManager {
             lineRef.compareAndSet(line, null);
             voiceState.set(VoiceState.ERROR);
             lastError.set(friendlyError(ex));
-            GemmaBuddyScreen.addHistory("GemmaBuddy: Voice capture failed: " + friendlyError(ex));
+            GemmaBuddyScreen.addErrorMessage("Voice capture failed: " + friendlyError(ex));
         } finally {
             recording.set(false);
         }
