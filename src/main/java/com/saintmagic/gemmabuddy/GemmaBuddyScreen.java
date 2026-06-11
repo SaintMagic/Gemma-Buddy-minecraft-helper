@@ -470,24 +470,32 @@ public final class GemmaBuddyScreen extends Screen {
     }
 
     private void activateAction(ActionRegistry.ActionDefinition definition) {
-        String template = definition.commandTemplate();
-        if (definition.requiresInput() || template.contains("{target}")) {
+        if (definition.inputMode() == ActionRegistry.InputMode.TARGET_INPUT) {
             String target = lookupValue();
             if (target.isBlank()) {
                 addSystemMessage("Type a target in the lookup box first.");
                 focusTargetInput();
                 return;
             }
-            sendCommand(applyTarget(template, target));
+            GemmaBuddyClient.sendGemmaAction(definition.id(), target);
+            focusMainInput();
             return;
         }
 
-        if ("ask".equals(definition.id()) || "ask".equals(template)) {
-            prefillMainInput("gemma ask ");
+        if (definition.inputMode() == ActionRegistry.InputMode.MAIN_INPUT) {
+            String text = this.mainInput == null ? "" : this.mainInput.getValue().trim();
+            if (text.isBlank()) {
+                focusMainInput();
+                return;
+            }
+            GemmaBuddyClient.sendGemmaAction(definition.id(), text);
+            this.mainInput.setValue("");
+            focusMainInput();
             return;
         }
 
-        sendCommand(template);
+        GemmaBuddyClient.sendGemmaAction(definition.id(), "");
+        focusMainInput();
     }
 
     private void sendCurrent() {
@@ -505,27 +513,8 @@ public final class GemmaBuddyScreen extends Screen {
         focusMainInput();
     }
 
-    private void sendCommand(String command) {
-        GemmaBuddyClient.sendGemmaMessage(command);
-        focusMainInput();
-    }
-
-    private void prefillMainInput(String text) {
-        if (this.mainInput == null) {
-            return;
-        }
-
-        this.mainInput.setValue(text);
-        this.mainInput.setCursorPosition(text.length());
-        focusMainInput();
-    }
-
     private String lookupValue() {
         return this.targetInput == null ? "" : this.targetInput.getValue().trim();
-    }
-
-    private String applyTarget(String template, String target) {
-        return "gemma " + template.replace("{target}", target.trim());
     }
 
     private void focusMainInput() {
@@ -610,7 +599,7 @@ public final class GemmaBuddyScreen extends Screen {
 
     private boolean categoryNeedsTargetInput(String categoryId) {
         for (ActionRegistry.ActionDefinition action : GemmaBuddy.actionRegistry().actionsForCategory(categoryId)) {
-            if (action.requiresInput() || action.commandTemplate().contains("{target}")) {
+            if (action.inputMode() == ActionRegistry.InputMode.TARGET_INPUT) {
                 return true;
             }
         }

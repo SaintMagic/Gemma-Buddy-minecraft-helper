@@ -154,4 +154,17 @@ public final class GemmaBuddyClient {
 
         connection.sendChat(toSend);
     }
+
+    public static void sendGemmaAction(String actionId, String argument) {
+        String cleanedId = actionId == null ? "" : actionId.trim();
+        if (cleanedId.isBlank()) {
+            return;
+        }
+
+        String cleanedArgument = argument == null ? "" : argument.trim();
+        String command = cleanedArgument.isBlank()
+                ? "action " + cleanedId
+                : "action " + cleanedId + " " + cleanedArgument;
+        sendGemmaMessage(command);
+    }
 }
