@@ -24,12 +24,15 @@ public final class CommandRouter {
     private final ActionRegistry actions;
     private final GoalManager goals;
     private final KnowledgeIndex knowledge;
+    private final KnowledgeRepository repository;
     private final LmStudioClient llm;
 
-    public CommandRouter(ActionRegistry actions, GoalManager goals, KnowledgeIndex knowledge, LmStudioClient llm) {
+    public CommandRouter(ActionRegistry actions, GoalManager goals, KnowledgeIndex knowledge,
+            KnowledgeRepository repository, LmStudioClient llm) {
         this.actions = actions;
         this.goals = goals;
         this.knowledge = knowledge;
+        this.repository = repository;
         this.llm = llm;
     }
 
@@ -84,6 +87,7 @@ public final class CommandRouter {
                 resolved.matchedAlias(),
                 StateSnapshot.capture(player),
                 knowledge,
+                repository,
                 goals,
                 llm);
 
@@ -108,6 +112,7 @@ public final class CommandRouter {
                 "",
                 StateSnapshot.capture(player),
                 knowledge,
+                repository,
                 goals,
                 llm);
         LOGGER.info("GemmaBuddy fallback routed to plan input='{}'", input);
@@ -131,6 +136,7 @@ public final class CommandRouter {
                     "",
                     StateSnapshot.capture(player),
                     knowledge,
+                    repository,
                     goals,
                     llm);
             ActionResult result = actions.execute(context, definition.id());

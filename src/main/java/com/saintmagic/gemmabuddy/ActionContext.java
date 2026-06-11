@@ -17,6 +17,7 @@ public record ActionContext(
         String matchedAlias,
         StateSnapshot snapshot,
         KnowledgeIndex knowledge,
+        KnowledgeRepository repository,
         GoalManager goals,
         LmStudioClient llm) {
 }

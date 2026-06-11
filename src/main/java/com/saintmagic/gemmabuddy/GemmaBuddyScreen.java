@@ -22,6 +22,7 @@ public final class GemmaBuddyScreen extends Screen {
     private static final int VOICE_BUTTON_WIDTH = 60;
     private static final int ACTION_BUTTON_MIN_WIDTH = 96;
     private static final int ACTION_BUTTON_HEIGHT = 18;
+    private static final int ACTION_PANEL_HEADER_HEIGHT = 18;
     private static final List<ChatEntry> HISTORY = new ArrayList<>();
 
     private final SidebarPanel sidebar = new SidebarPanel();
@@ -281,19 +282,19 @@ public final class GemmaBuddyScreen extends Screen {
         }
 
         boolean showTarget = categoryNeedsTargetInput(selectedCategoryId);
-        int targetHeight = showTarget ? ScreenTheme.INPUT_HEIGHT + ScreenTheme.PAD + 8 : 0;
+        int targetHeight = showTarget ? ScreenTheme.INPUT_HEIGHT + ScreenTheme.GAP + 8 : 0;
         if (this.targetInput != null) {
             this.targetInput.visible = showTarget;
             this.targetInput.active = showTarget;
             this.targetInput.setX(layout.contentX + ScreenTheme.PAD);
-            this.targetInput.setY(layout.actionsY + ScreenTheme.PAD + 2);
+            this.targetInput.setY(layout.actionsY + ACTION_PANEL_HEADER_HEIGHT + 2);
             this.targetInput.setWidth(Math.max(80, layout.contentWidth - ScreenTheme.PAD * 2));
         }
 
         layoutActions(layout.contentX + ScreenTheme.PAD,
-                layout.actionsY + targetHeight,
+                layout.actionsY + ACTION_PANEL_HEADER_HEIGHT + targetHeight,
                 layout.contentWidth - ScreenTheme.PAD * 2,
-                layout.actionsHeight - targetHeight - ScreenTheme.PAD);
+                layout.actionsHeight - ACTION_PANEL_HEADER_HEIGHT - targetHeight - ScreenTheme.PAD);
 
         if (this.mainInput != null) {
             this.mainInput.setX(ScreenTheme.MARGIN);
@@ -452,7 +453,7 @@ public final class GemmaBuddyScreen extends Screen {
         int columnWidth = columns == 1 ? width : Math.max(ACTION_BUTTON_MIN_WIDTH, (width - ScreenTheme.GAP) / 2);
         int rows = (visible.size() + columns - 1) / columns;
         int gridHeight = rows * ACTION_BUTTON_HEIGHT + Math.max(0, rows - 1) * ScreenTheme.GAP;
-        int rowY = Math.max(y, y + height - gridHeight);
+        int rowY = y;
         for (int i = 0; i < visible.size(); i++) {
             ActionUi action = visible.get(i);
             int column = i % columns;
@@ -607,8 +608,8 @@ public final class GemmaBuddyScreen extends Screen {
     }
 
     private int computeHistoryHeight(int bodyHeight) {
-        int desired = Math.max(92, (int) (bodyHeight * 0.58F));
-        return Math.min(desired, Math.max(70, bodyHeight - 72));
+        int desired = Math.max(88, (int) (bodyHeight * 0.52F));
+        return Math.min(desired, Math.max(68, bodyHeight - 108));
     }
 
     private int visibleHistoryRows() {

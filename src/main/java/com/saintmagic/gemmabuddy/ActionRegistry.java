@@ -107,11 +107,24 @@ public final class ActionRegistry {
                         "what can i craft with",
                         "what can i make with",
                         "can i craft with it",
+                        "which mod adds",
                         "what mod added this",
                         "what mod added it",
                         "what mod added that",
                         "how do i decay them into compost"),
-                List.of(), this::knowledgeLookupAction));
+                List.of("lookup <query>"), this::knowledgeLookupAction));
+
+        register(action("recipe_lookup", KNOWLEDGE, "Recipe for target",
+                "Show the exact local recipe for a target when recipe data is available.",
+                false, true, InputMode.TARGET_INPUT, "item / block / output",
+                List.of("how do i craft", "how do i make", "recipe for"),
+                List.of("recipe <query>"), this::recipeLookupAction));
+
+        register(action("usage_lookup", KNOWLEDGE, "Uses for target",
+                "Show what recipes or uses the target appears in.",
+                false, true, InputMode.TARGET_INPUT, "item / block / input",
+                List.of("uses for"),
+                List.of("uses <query>"), this::usageLookupAction));
 
         register(action("spawn", BUDDY, "Spawn buddy",
                 "Spawn the GemmaBuddy companion near the player.",
@@ -311,7 +324,10 @@ public final class ActionRegistry {
     }
 
     private ActionResult knowledgeStatusAction(ActionContext context) {
-        return context.knowledge().knowledgeStatus(context.player());
+        ActionResult result = context.knowledge().knowledgeStatus(context.player());
+        GemmaBuddy.sendLine(context.player(), context.repository().statusLine());
+        GemmaBuddy.sendLine(context.player(), "Docs folder: " + context.repository().docsRootPath());
+        return result;
     }
 
     private ActionResult knowledgeRebuildAction(ActionContext context) {
@@ -334,9 +350,10 @@ public final class ActionRegistry {
             return ActionResult.failure("Missing query.");
         }
 
-        String contextTarget = ContextResolver.resolveTarget(context.player(), context.knowledge(), query);
-        if (!contextTarget.isBlank()) {
-            query = contextTarget;
+        String deterministicQuery = context.argument().isBlank() ? context.normalizedInput() : query;
+        ActionResult deterministic = tryDeterministicKnowledgeAnswer(context, deterministicQuery);
+        if (deterministic != null) {
+            return deterministic;
         }
 
         LOGGER.info("Knowledge query original='{}' normalized='{}' target='{}' action='{}'", context.rawInput(),
@@ -367,6 +384,36 @@ public final class ActionRegistry {
         }
 
         return ActionResult.success("Knowledge lookup shown.");
+    }
+
+    private ActionResult recipeLookupAction(ActionContext context) {
+        String query = firstNonBlank(context.argument(), context.normalizedInput());
+        if (normalize(query).isBlank()) {
+            GemmaBuddy.sendLine(context.player(), "Use: gemma recipe for <item/block>");
+            return ActionResult.failure("Missing recipe target.");
+        }
+        String routed = ensureRecipeIntent(query);
+        ActionResult deterministic = tryDeterministicKnowledgeAnswer(context, routed);
+        if (deterministic != null) {
+            return deterministic;
+        }
+        GemmaBuddy.sendError(context.player(), "I could not find an exact local recipe for that target yet.");
+        return ActionResult.failure("No deterministic recipe found.");
+    }
+
+    private ActionResult usageLookupAction(ActionContext context) {
+        String query = firstNonBlank(context.argument(), context.normalizedInput());
+        if (normalize(query).isBlank()) {
+            GemmaBuddy.sendLine(context.player(), "Use: gemma uses for <item/block>");
+            return ActionResult.failure("Missing usage target.");
+        }
+        String routed = ensureUsageIntent(query);
+        ActionResult deterministic = tryDeterministicKnowledgeAnswer(context, routed);
+        if (deterministic != null) {
+            return deterministic;
+        }
+        GemmaBuddy.sendError(context.player(), "I could not find local usage data for that target yet.");
+        return ActionResult.failure("No deterministic usage found.");
     }
 
     private String resolveKnowledgeQuery(ActionContext context) {
@@ -483,6 +530,7 @@ public final class ActionRegistry {
 
     private ActionResult showKnowledgePathAction(ActionContext context) {
         GemmaBuddy.sendLine(context.player(), "Knowledge folder: " + context.knowledge().knowledgeRootPath());
+        GemmaBuddy.sendLine(context.player(), "Docs folder: " + context.repository().docsRootPath());
         return ActionResult.success("Knowledge path shown.");
     }
 
@@ -493,6 +541,7 @@ public final class ActionRegistry {
         GemmaBuddy.sendLine(context.player(),
                 "Voice control is " + (GemmaBuddy.config().enableVoiceControl() ? "enabled" : "disabled") + ".");
         GemmaBuddy.sendLine(context.player(), context.knowledge().statusLine());
+        GemmaBuddy.sendLine(context.player(), context.repository().statusLine());
         return ActionResult.success("Config reloaded.");
     }
 
@@ -501,6 +550,11 @@ public final class ActionRegistry {
         if (normalizedQuery.isBlank() || "ask".equals(mode) && normalizedQuery.equals("ask")) {
             GemmaBuddy.sendLine(context.player(), "Use: gemma ask <message>");
             return ActionResult.failure("Missing question.");
+        }
+
+        ActionResult deterministic = tryDeterministicKnowledgeAnswer(context, normalizedQuery);
+        if (deterministic != null) {
+            return deterministic;
         }
 
         StateSnapshot snapshot = context.snapshot();
@@ -541,6 +595,30 @@ public final class ActionRegistry {
         });
 
         return ActionResult.success("Planning request started.");
+    }
+
+    private ActionResult tryDeterministicKnowledgeAnswer(ActionContext context, String query) {
+        MinecraftServer server = context.player().getServer();
+        if (server == null) {
+            return null;
+        }
+
+        String contextTarget = ContextResolver.resolveTarget(context.player(), context.knowledge(), query);
+        String effectiveQuery = contextTarget.isBlank() ? query : contextTarget;
+        Optional<KnowledgeDataverse.DeterministicAnswer> answer = context.repository().answerQuestion(server,
+                effectiveQuery);
+        if (answer.isEmpty()) {
+            return null;
+        }
+
+        KnowledgeDataverse.DeterministicAnswer resolved = answer.get();
+        context.knowledge().rememberResolvedTarget(resolved.resolvedEntryId());
+        for (String line : resolved.lines()) {
+            GemmaBuddy.sendLine(context.player(), line);
+        }
+        LOGGER.info("GemmaBuddy deterministic answer kind='{}' query='{}' resolved='{}' lines={}",
+                resolved.kind(), query, resolved.resolvedEntryId(), String.join(" | ", resolved.lines()));
+        return ActionResult.success("Deterministic knowledge answer shown.");
     }
 
     private String completePlanningReply(ActionContext context, StateSnapshot snapshot, String knowledgeContext,
@@ -604,6 +682,26 @@ public final class ActionRegistry {
             cleaned = cleaned.substring(0, cleaned.length() - 3).trim();
         }
         return cleaned;
+    }
+
+    private String ensureRecipeIntent(String text) {
+        String cleaned = normalize(text);
+        if (cleaned.startsWith("how do i craft ") || cleaned.startsWith("how do i make ")
+                || cleaned.startsWith("recipe for ")) {
+            return cleaned;
+        }
+        return "recipe for " + cleaned;
+    }
+
+    private String ensureUsageIntent(String text) {
+        String cleaned = normalize(text);
+        if (cleaned.startsWith("what is ") && cleaned.endsWith(" used for")) {
+            return cleaned;
+        }
+        if (cleaned.startsWith("what can i do with ") || cleaned.startsWith("how do i use ")) {
+            return cleaned;
+        }
+        return "what is " + cleaned + " used for";
     }
 
     private String friendlyError(Throwable ex) {

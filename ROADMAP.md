@@ -240,18 +240,27 @@ player asks question
 
 Priority: core feature
 
-## Phase 4.5: Documentation Builder
+## Phase 4.5: Local Knowledge Dataverse + Documentation Builder
 
-Goal: Turn raw modpack data into local, searchable documentation pages.
+Goal: Turn raw modpack data into exact local lookup tables first, then generate grounded docs/cards from those facts.
 
-The Knowledge Index gives GemmaBuddy facts. The Documentation Builder turns those facts into evidence-based local docs that answer practical questions better than raw registry output alone.
+The Knowledge Index gathers raw evidence. The Local Knowledge Dataverse organizes it into deterministic tables for entries, aliases, recipes, usages, tags, and mod ownership. The Documentation Builder then turns those facts into local cards/pages that GemmaBuddy can search or quote.
+
+### Dataverse layer
+
+- exact lookup tables for entries, aliases, recipes, usages, tags, and mod ownership
+- deterministic recipe and usage answers before LM Studio
+- normalized lookup for spaces, underscores, hyphens, and simple typo correction
+- repository/service boundary so a future SQL or SQLite backend can replace the in-memory tables without changing CommandRouter, UI, or LLM flows
 
 ### Build from local evidence
 
+- registries
 - recipes
+- recipe inputs and outputs
 - tags
 - advancements
-- loot tables
+- loot tables later if practical
 - lang and display names
 - tooltips if accessible
 - creative tabs
@@ -271,24 +280,24 @@ The Knowledge Index gives GemmaBuddy facts. The Documentation Builder turns thos
 - Name
 - Mod
 - Type
-- How to craft or obtain it
-- How to use it
-- What it is used for
-- Progression relevance
+- Exact recipe if any
+- Uses / recipe outputs involving it
+- Tags
 - Related items
-- Known limitations
+- Progression relevance
 - Evidence sources used
 
 ### Critical rule
 
-- Do not invent docs from vibes.
+- The LLM may phrase or summarize facts, but it must not invent exact ingredients, counts, or layouts.
 - Build docs from structured local evidence first.
-- Let the LLM summarize the evidence, not fabricate it.
+- SQL or SQLite is a future storage backend option, not required in this pass.
 
 ### Done when
 
-- GemmaBuddy can answer "what is this for?" with uses, recipes, progression relevance, and limitations
-- Docs are searchable by item, block, mod, or keyword
+- GemmaBuddy can answer `how do i craft X` with exact ingredient counts and shaped layout when known
+- GemmaBuddy can answer `what is X used for` from local recipe and tag evidence
+- Docs/cards are searchable by item, block, mod, or keyword
 - Answers are grounded in local evidence rather than generic identity only
 
 ## Phase 5: Mod-Aware Q&A
@@ -362,78 +371,87 @@ Priority: high
 
 ## Phase 7: Safe Action System
 
-Goal: Prepare for doing things without turning the world into a smoking crater.
+Goal: Prepare the action layer without letting GemmaBuddy break the world by accident.
 
-### First safe actions
+### Core pieces
 
-- follow player
-- come here
-- stay
-- look at player
-- mark home
-- go home later
-- collect nearby dropped items later
-
-### Action safety rules
-
-- No world modification without explicit permission
-- No block breaking in first action version
-- No inventory manipulation until stable
-- Every action must be cancellable
-- `/gemmabuddy stop` must always work
-
-### Architecture
-
-- ActionRegistry
-- PermissionLevel
-- RunningTask
-- TaskStatus
-- CancelToken
+- permissions / approvals
+- stop command
+- action routing
+- no-world-modification safety rules
 
 ### Done when
 
-- GemmaBuddy can start/stop safe non-destructive actions
-- UI shows current running action
-- Commands remain responsive
+- GemmaBuddy can gate actions through permissions and approvals
+- `/gemmabuddy stop` always interrupts current work
+- action routing stays centralized
+- destructive actions stay blocked by default
 
 Priority: medium-high
 
-## Phase 8: Movement and Utility Actions
+## Phase 8: Buddy Movement
 
-Goal: Give the companion legs.
+Goal: Give the companion legs, but keep it obedient.
 
-### Possible actions
+### Movement actions
 
 - follow me
-- come here
 - stay here
-- go to marked home
-- move to coordinates
-- avoid danger
-- return if too far
-
-### Design inspiration
-
-Baritone-style ideas only:
-
-- goals
-- processes
-- path state
-- task cancellation
-- progress feedback
-
-No required Baritone dependency.
+- come here
+- where are you?
+- stop
+- return home / mark home
 
 ### Done when
 
-- GemmaBuddy can navigate basic terrain
-- Does not get permanently lost immediately
-- Can be stopped
-- Can report what it is trying to do
+- GemmaBuddy can move toward the player
+- GemmaBuddy can stay put
+- GemmaBuddy can report where it is
+- Movement obeys stop and permission rules
 
 Priority: medium
 
-## Phase 9: Building and Skills
+## Phase 8.5: Fair Find Mode
+
+Goal: Help the player locate useful things without cheating the world open.
+
+### Find actions
+
+- find item/block/entity/place
+- search inventory / nearby loaded area / dropped items
+- remember opened containers and useful discoveries
+- guide player to known target
+- scout suggestions if unknown
+- no chunk loading by default
+
+### Done when
+
+- GemmaBuddy can look for known targets locally
+- It remembers useful discoveries
+- It does not force-load chunks just to search
+
+Priority: medium
+
+## Phase 8.6: Tablet / GTA Phone Mini Console
+
+Goal: Give the player a fast mini UI for short, frequent commands.
+
+### Mini console
+
+- show latest replies
+- show current goal/search target
+- quick buttons: Follow, Stay, Come, Stop, Scan, Find
+- Open Full UI button
+
+### Done when
+
+- The mini console mirrors recent context
+- Quick actions are one click away
+- The full GemmaBuddy UI is still available
+
+Priority: medium
+
+## Phase 9: Advanced Skills / Building
 
 Goal: "Build me a house" becomes a structured skill, not magical nonsense.
 
@@ -476,7 +494,7 @@ Goal: "Build me a house" becomes a structured skill, not magical nonsense.
 - Skills are saved locally
 - Execution remains optional and safe
 
-Priority: later
+Priority: later, after movement + permissions + find mode are stable
 
 ## Phase 10: Polish and Public Alpha
 

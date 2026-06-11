@@ -48,9 +48,10 @@ public final class GemmaBuddy {
     private static final ActionRegistry ACTION_REGISTRY = new ActionRegistry();
     private static final GoalManager GOAL_MANAGER = new GoalManager();
     private static final KnowledgeIndex KNOWLEDGE_INDEX = new KnowledgeIndex();
+    private static final KnowledgeRepository KNOWLEDGE_REPOSITORY = new KnowledgeDataverse(KNOWLEDGE_INDEX);
     private static final LmStudioClient LLM = new LmStudioClient(LM_STUDIO_URL, LM_STUDIO_MODEL);
     private static final CommandRouter COMMAND_ROUTER = new CommandRouter(ACTION_REGISTRY, GOAL_MANAGER,
-            KNOWLEDGE_INDEX, LLM);
+            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, LLM);
 
     public GemmaBuddy(IEventBus modEventBus) {
         CONFIG.load();
@@ -87,6 +88,10 @@ public final class GemmaBuddy {
 
     public static KnowledgeIndex knowledgeIndex() {
         return KNOWLEDGE_INDEX;
+    }
+
+    public static KnowledgeRepository knowledgeRepository() {
+        return KNOWLEDGE_REPOSITORY;
     }
 
     public static String llmStatusLine() {

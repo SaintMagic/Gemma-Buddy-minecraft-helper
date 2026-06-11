@@ -99,6 +99,10 @@ public final class KnowledgeIndex {
         return reportsRoot.toAbsolutePath().toString();
     }
 
+    public String docsRootPath() {
+        return knowledgeRoot.resolve("docs").toAbsolutePath().toString();
+    }
+
     public String configRootPath() {
         return knowledgeRoot.getParent().toAbsolutePath().toString();
     }
@@ -372,6 +376,14 @@ public final class KnowledgeIndex {
 
     public void reloadFromDisk() {
         loadFromDisk();
+    }
+
+    public Map<String, ModKnowledgeReport> reportSnapshot() {
+        return Map.copyOf(reports);
+    }
+
+    public List<ModKnowledgeReport> allReportsSnapshot() {
+        return List.copyOf(allReports());
     }
 
     public LookupResult lookup(String query) {
