@@ -147,7 +147,6 @@ public final class GemmaBuddy {
         buddy.moveTo(player.getX() + 1.5D, player.getY(), player.getZ() + 1.5D, player.getYRot(), 0.0F);
         buddy.setCustomName(Component.literal(COMPANION_NAME));
         buddy.setCustomNameVisible(true);
-        buddy.setNoAi(true);
         buddy.setPersistenceRequired();
         buddy.addTag(COMPANION_TAG);
 

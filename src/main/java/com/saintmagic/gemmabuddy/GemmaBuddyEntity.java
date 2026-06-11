@@ -17,8 +17,8 @@ public class GemmaBuddyEntity extends PathfinderMob {
     public static AttributeSupplier.Builder createAttributes() {
         return PathfinderMob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0D)
-                .add(Attributes.MOVEMENT_SPEED, 0.16D)
-                .add(Attributes.FOLLOW_RANGE, 16.0D);
+                .add(Attributes.MOVEMENT_SPEED, 0.18D)
+                .add(Attributes.FOLLOW_RANGE, 32.0D);
     }
 
     public GemmaBuddyEntity(EntityType<? extends PathfinderMob> type, Level level) {
@@ -42,7 +42,7 @@ public class GemmaBuddyEntity extends PathfinderMob {
             return;
         }
 
-        Player nearbyPlayer = this.level().getNearestPlayer(this, 12.0D);
+        Player nearbyPlayer = this.level().getNearestPlayer(this, 32.0D);
         if (nearbyPlayer == null) {
             this.getNavigation().stop();
             return;
