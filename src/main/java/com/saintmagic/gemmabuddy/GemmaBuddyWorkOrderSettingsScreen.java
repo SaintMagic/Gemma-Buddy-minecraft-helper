@@ -45,13 +45,13 @@ public final class GemmaBuddyWorkOrderSettingsScreen extends Screen {
         int columnWidth = Math.max(74, (width - margin * 2 - gap * 3) / 4);
         int y = 35;
 
-        limits = new EditBox(font, margin, y + 10, (width - margin * 2 - gap) / 2, 18,
+        limits = new ModernEditBox(font, margin, y + 10, (width - margin * 2 - gap) / 2, 20,
                 Component.literal("Limits"));
         limits.setValue(config.maxWorkOrderBlocks() + " " + config.maxWorkOrderDistance() + " "
                 + config.maxWorkOrderSeconds());
         addRenderableWidget(limits);
         int rightX = margin + limits.getWidth() + gap;
-        reporting = new EditBox(font, rightX, y + 10, width - margin - rightX, 18,
+        reporting = new ModernEditBox(font, rightX, y + 10, width - margin - rightX, 20,
                 Component.literal("Reporting"));
         reporting.setValue(config.reportProgressEverySeconds() + " " + config.maxInterruptionsPerWorkOrder());
         addRenderableWidget(reporting);
@@ -124,15 +124,15 @@ public final class GemmaBuddyWorkOrderSettingsScreen extends Screen {
         });
 
         int bottomY = Math.min(height - 26, y + 30);
-        addRenderableWidget(Button.builder(Component.literal("Save limits"), button -> saveFields())
-                .bounds(margin, bottomY, 92, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Back"), button -> onClose())
-                .bounds(width - margin - 70, bottomY, 70, 18).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Save limits"), button -> saveFields())
+                .bounds(margin, bottomY, 92, 18).style(ModernButton.Style.PRIMARY).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Back"), button -> onClose())
+                .bounds(width - margin - 70, bottomY, 70, 18).style(ModernButton.Style.GHOST).build());
         focusLimits();
     }
 
     private Button toggle(int x, int y, int width, Component label, Button.OnPress press) {
-        return addRenderableWidget(Button.builder(label, button -> {
+        return addRenderableWidget(ModernButton.create(label, button -> {
             press.onPress(button);
             focusLimits();
         }).bounds(x, y, width, 18).build());
@@ -181,9 +181,10 @@ public final class GemmaBuddyWorkOrderSettingsScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(6, 6, width - 6, height - 6, ScreenTheme.PANEL);
-        graphics.fill(6, 6, width - 6, 8, ScreenTheme.ACCENT);
-        graphics.drawCenteredString(font, title, width / 2, 14, ScreenTheme.TEXT);
+        ScreenTheme.backdrop(graphics, width, height);
+        ScreenTheme.card(graphics, 7, 7, width - 14, height - 14, true);
+        graphics.fill(width / 2 - 24, 7, width / 2 + 24, 9, ScreenTheme.ACCENT);
+        graphics.drawCenteredString(font, title, width / 2, 15, ScreenTheme.TEXT);
         graphics.drawString(font, "Limits: blocks distance seconds", limits.getX(), limits.getY() - 9,
                 ScreenTheme.MUTED_TEXT, false);
         graphics.drawString(font, "Reporting: seconds max interruptions", reporting.getX(), reporting.getY() - 9,

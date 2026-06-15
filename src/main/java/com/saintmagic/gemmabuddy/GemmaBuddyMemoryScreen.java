@@ -32,31 +32,31 @@ public final class GemmaBuddyMemoryScreen extends Screen {
     protected void init() {
         clearWidgets();
         int margin = 12;
-        addRenderableWidget(Button.builder(Component.literal("Notes"), button -> switchTab(false))
-                .bounds(margin, 28, 70, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Goals"), button -> switchTab(true))
-                .bounds(margin + 76, 28, 70, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Back"), button -> onClose())
-                .bounds(width - margin - 54, 28, 54, 18).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Notes"), button -> switchTab(false))
+                .bounds(margin, 28, 70, 18).style(goalsTab ? ModernButton.Style.GHOST : ModernButton.Style.PILL).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Goals"), button -> switchTab(true))
+                .bounds(margin + 76, 28, 70, 18).style(goalsTab ? ModernButton.Style.PILL : ModernButton.Style.GHOST).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Back"), button -> onClose())
+                .bounds(width - margin - 54, 28, 54, 18).style(ModernButton.Style.GHOST).build());
 
         listTop = 52;
         listBottom = height - 58;
-        input = new EditBox(font, margin, height - 48, Math.max(80, width - margin * 2 - 184), 18, Component.empty());
+        input = new ModernEditBox(font, margin, height - 48, Math.max(80, width - margin * 2 - 184), 18, Component.empty());
         input.setHint(Component.literal(goalsTab ? "Goal text" : "Note text"));
         input.setMaxLength(512);
         addRenderableWidget(input);
 
         int x = width - margin - 176;
-        addRenderableWidget(Button.builder(Component.literal(goalsTab ? "Set" : "Add"), button -> addEntry())
-                .bounds(x, height - 48, 52, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Edit"), button -> editEntry())
+        addRenderableWidget(ModernButton.create(Component.literal(goalsTab ? "Set" : "Add"), button -> addEntry())
+                .bounds(x, height - 48, 52, 18).style(ModernButton.Style.PRIMARY).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Edit"), button -> editEntry())
                 .bounds(x + 58, height - 48, 52, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteEntry())
-                .bounds(x + 116, height - 48, 60, 18).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Delete"), button -> deleteEntry())
+                .bounds(x + 116, height - 48, 60, 18).style(ModernButton.Style.DANGER).build());
         if (goalsTab) {
-            addRenderableWidget(Button.builder(Component.literal("Activate"), button -> setActive(true))
-                    .bounds(margin, height - 26, 72, 18).build());
-            addRenderableWidget(Button.builder(Component.literal("Deactivate"), button -> setActive(false))
+            addRenderableWidget(ModernButton.create(Component.literal("Activate"), button -> setActive(true))
+                    .bounds(margin, height - 26, 72, 18).style(ModernButton.Style.SUCCESS).build());
+            addRenderableWidget(ModernButton.create(Component.literal("Deactivate"), button -> setActive(false))
                     .bounds(margin + 78, height - 26, 82, 18).build());
         }
         input.setFocused(true);
@@ -172,10 +172,11 @@ public final class GemmaBuddyMemoryScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(6, 6, width - 6, height - 6, ScreenTheme.PANEL);
-        graphics.fill(6, 6, width - 6, 8, ScreenTheme.ACCENT);
+        ScreenTheme.backdrop(graphics, width, height);
+        ScreenTheme.card(graphics, 7, 7, width - 14, height - 14, true);
+        graphics.fill(width / 2 - 20, 7, width / 2 + 20, 9, ScreenTheme.ACCENT);
         graphics.drawCenteredString(font, goalsTab ? "Goals" : "Notes", width / 2, 14, ScreenTheme.TEXT);
-        graphics.fill(12, listTop, width - 12, listBottom, ScreenTheme.PANEL_SOFT);
+        ScreenTheme.card(graphics, 12, listTop, width - 24, listBottom - listTop, false);
         if (goalsTab) {
             List<MemoryManager.SavedGoal> goals = GemmaBuddy.memoryManager().goals();
             for (int index = 0; index < goals.size() && listTop + index * 18 + 16 <= listBottom; index++) {
@@ -195,7 +196,10 @@ public final class GemmaBuddyMemoryScreen extends Screen {
     private void drawRow(GuiGraphics graphics, int id, String text, int row) {
         int y = listTop + row * 18;
         if (id == selectedId) {
-            graphics.fill(14, y + 1, width - 14, y + 17, ScreenTheme.SIDEBAR_SELECTED);
+            ScreenTheme.roundedBorder(graphics, 15, y + 1, width - 30, 16, 3,
+                    ScreenTheme.ACCENT_DARK, ScreenTheme.SIDEBAR_SELECTED);
+        } else if ((row & 1) == 1) {
+            ScreenTheme.roundedRect(graphics, 15, y + 1, width - 30, 16, 3, 0x381D242A);
         }
         String line = id + ". " + text;
         graphics.drawString(font, font.plainSubstrByWidth(line, width - 36), 18, y + 5, ScreenTheme.TEXT, false);

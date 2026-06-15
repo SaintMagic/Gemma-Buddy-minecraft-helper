@@ -70,7 +70,7 @@ public final class GemmaBuddySettingsScreen extends Screen {
         y += 27;
 
         int toggleWidth = Math.max(86, (width - margin * 2 - gap * 3) / 4);
-        thinking = addRenderableWidget(Button.builder(thinkingLabel(), button -> {
+        thinking = addRenderableWidget(ModernButton.create(thinkingLabel(), button -> {
             config.setThinkingMode(switch (config.thinkingMode()) {
                 case OFF -> GemmaBuddyConfig.ThinkingMode.AUTO;
                 case AUTO -> GemmaBuddyConfig.ThinkingMode.ON;
@@ -79,17 +79,17 @@ public final class GemmaBuddySettingsScreen extends Screen {
             button.setMessage(thinkingLabel());
             focusFirst();
         }).bounds(margin, y, toggleWidth, 18).build());
-        retry = addRenderableWidget(Button.builder(retryLabel(), button -> {
+        retry = addRenderableWidget(ModernButton.create(retryLabel(), button -> {
             config.setRetryWithoutThinkingOnTimeout(!config.retryWithoutThinkingOnTimeout());
             button.setMessage(retryLabel());
             focusFirst();
         }).bounds(margin + (toggleWidth + gap), y, toggleWidth, 18).build());
-        hideReasoning = addRenderableWidget(Button.builder(reasoningLabel(), button -> {
+        hideReasoning = addRenderableWidget(ModernButton.create(reasoningLabel(), button -> {
             config.setHideReasoningAlways(!config.hideReasoningAlways());
             button.setMessage(reasoningLabel());
             focusFirst();
         }).bounds(margin + (toggleWidth + gap) * 2, y, toggleWidth, 18).build());
-        outputFormat = addRenderableWidget(Button.builder(outputLabel(), button -> {
+        outputFormat = addRenderableWidget(ModernButton.create(outputLabel(), button -> {
             config.setOutputFormat(switch (config.outputFormat()) {
                 case NATURAL -> GemmaBuddyConfig.OutputFormat.REGISTRY;
                 case REGISTRY -> GemmaBuddyConfig.OutputFormat.BOTH;
@@ -101,26 +101,27 @@ public final class GemmaBuddySettingsScreen extends Screen {
 
         int bottomY = Math.min(height - 26, y + 26);
         int buttonWidth = Math.max(58, (width - margin * 2 - gap * 5) / 6);
-        addRenderableWidget(Button.builder(Component.literal("Save"), button -> saveSettings())
-                .bounds(margin, bottomY, buttonWidth, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Reload"), button -> reloadSettings())
+        addRenderableWidget(ModernButton.create(Component.literal("Save"), button -> saveSettings())
+                .bounds(margin, bottomY, buttonWidth, 18).style(ModernButton.Style.PRIMARY).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Reload"), button -> reloadSettings())
                 .bounds(margin + (buttonWidth + gap), bottomY, buttonWidth, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("LM test"),
+        addRenderableWidget(ModernButton.create(Component.literal("LM test"),
                 button -> GemmaBuddyClient.sendGemmaAction("lmstudio_test", ""))
                 .bounds(margin + (buttonWidth + gap) * 2, bottomY, buttonWidth, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Config folder"),
+        addRenderableWidget(ModernButton.create(Component.literal("Config folder"),
                 button -> openFolder(config.configPath().getParent()))
                 .bounds(margin + (buttonWidth + gap) * 3, bottomY, buttonWidth, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Work Orders"),
+        addRenderableWidget(ModernButton.create(Component.literal("Work Orders"),
                 button -> GemmaBuddyClient.openWorkOrderSettingsScreen(this))
                 .bounds(margin + (buttonWidth + gap) * 4, bottomY, buttonWidth, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Back"), button -> onClose())
-                .bounds(margin + (buttonWidth + gap) * 5, bottomY, buttonWidth, 18).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Back"), button -> onClose())
+                .bounds(margin + (buttonWidth + gap) * 5, bottomY, buttonWidth, 18)
+                .style(ModernButton.Style.GHOST).build());
         focusFirst();
     }
 
     private EditBox addField(String label, String value, int x, int y, int fieldWidth) {
-        EditBox field = new EditBox(font, x, y + 10, fieldWidth, 18, Component.literal(label));
+        EditBox field = new ModernEditBox(font, x, y + 10, fieldWidth, 20, Component.literal(label));
         field.setValue(value);
         field.setMaxLength(512);
         fields.add(new LabeledField(label, field));
@@ -229,9 +230,10 @@ public final class GemmaBuddySettingsScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(6, 6, width - 6, height - 6, ScreenTheme.PANEL);
-        graphics.fill(6, 6, width - 6, 8, ScreenTheme.ACCENT);
-        graphics.drawCenteredString(font, title, width / 2, 14, ScreenTheme.TEXT);
+        ScreenTheme.backdrop(graphics, width, height);
+        ScreenTheme.card(graphics, 7, 7, width - 14, height - 14, true);
+        graphics.fill(width / 2 - 24, 7, width / 2 + 24, 9, ScreenTheme.ACCENT);
+        graphics.drawCenteredString(font, title, width / 2, 15, ScreenTheme.TEXT);
         for (LabeledField field : fields) {
             graphics.drawString(font, field.label(), field.field().getX(), field.field().getY() - 9,
                     ScreenTheme.MUTED_TEXT, false);

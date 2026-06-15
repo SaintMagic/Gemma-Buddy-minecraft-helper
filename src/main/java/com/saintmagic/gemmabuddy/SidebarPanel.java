@@ -37,8 +37,7 @@ public final class SidebarPanel {
 
     public void render(GuiGraphics graphics, Font font, List<String> categories, String selectedCategory,
             int mouseX, int mouseY) {
-        graphics.fill(x, y, x + width, y + height, ScreenTheme.SIDEBAR);
-        graphics.fill(x + width - 1, y, x + width, y + height, ScreenTheme.PANEL_EDGE);
+        ScreenTheme.card(graphics, x, y, width, height, true);
         renderToggle(graphics, font, mouseX, mouseY);
 
         int rowY = y + ScreenTheme.ROW_HEIGHT + 4;
@@ -46,18 +45,20 @@ public final class SidebarPanel {
             boolean selected = category.equals(selectedCategory);
             boolean hovered = isInside(mouseX, mouseY, x + 3, rowY, width - 6, ScreenTheme.ROW_HEIGHT);
             if (selected) {
-                graphics.fill(x + 3, rowY, x + width - 3, rowY + ScreenTheme.ROW_HEIGHT, ScreenTheme.SIDEBAR_SELECTED);
-                graphics.fill(x + 3, rowY, x + 5, rowY + ScreenTheme.ROW_HEIGHT, ScreenTheme.ACCENT);
+                ScreenTheme.roundedBorder(graphics, x + 4, rowY, width - 8, ScreenTheme.ROW_HEIGHT, 4,
+                        ScreenTheme.ACCENT_DARK, ScreenTheme.SIDEBAR_SELECTED);
+                graphics.fill(x + 5, rowY + 6, x + 7, rowY + ScreenTheme.ROW_HEIGHT - 6, ScreenTheme.ACCENT);
             } else if (hovered) {
-                graphics.fill(x + 3, rowY, x + width - 3, rowY + ScreenTheme.ROW_HEIGHT, ScreenTheme.SIDEBAR_HOVER);
+                ScreenTheme.roundedRect(graphics, x + 4, rowY, width - 8, ScreenTheme.ROW_HEIGHT, 4,
+                        ScreenTheme.SIDEBAR_HOVER);
             }
 
             String icon = iconFor(category);
-            int iconX = x + 12 - font.width(icon) / 2;
-            graphics.drawString(font, icon, iconX, rowY + 6, selected ? ScreenTheme.GOLD : ScreenTheme.MUTED_TEXT,
+            int iconX = x + 15 - font.width(icon) / 2;
+            graphics.drawString(font, icon, iconX, rowY + 8, selected ? ScreenTheme.ACCENT_BRIGHT : ScreenTheme.MUTED_TEXT,
                     false);
             if (!collapsed) {
-                graphics.drawString(font, shortLabel(category), x + 24, rowY + 6,
+                graphics.drawString(font, shortLabel(category), x + 29, rowY + 8,
                         selected ? ScreenTheme.TEXT : ScreenTheme.MUTED_TEXT, false);
             }
             rowY += ScreenTheme.ROW_HEIGHT + 2;
@@ -99,10 +100,12 @@ public final class SidebarPanel {
     private void renderToggle(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
         boolean hovered = isInside(mouseX, mouseY, x + 3, y + 3, width - 6, ScreenTheme.ROW_HEIGHT - 2);
         if (hovered) {
-            graphics.fill(x + 3, y + 3, x + width - 3, y + ScreenTheme.ROW_HEIGHT + 1, ScreenTheme.SIDEBAR_HOVER);
+            ScreenTheme.roundedRect(graphics, x + 4, y + 4, width - 8, ScreenTheme.ROW_HEIGHT - 2, 4,
+                    ScreenTheme.SIDEBAR_HOVER);
         }
         String label = collapsed ? ">" : "<";
-        graphics.drawString(font, label, x + width / 2 - font.width(label) / 2, y + 8, ScreenTheme.ACCENT, false);
+        graphics.drawString(font, label, x + width / 2 - font.width(label) / 2, y + 10,
+                ScreenTheme.ACCENT, false);
     }
 
     private static boolean isInside(double mouseX, double mouseY, int x, int y, int width, int height) {

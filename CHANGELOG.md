@@ -24,3 +24,4 @@
 - Added a one-approval-per-bounded-task trust contract with budgets, pause/resume/stop, interruption limits, and quiet milestone reporting.
 - Added Work Order controls/status to the full and mini consoles plus a dedicated settings page.
 - Added categorized in-game regression tests and local JSON/Markdown reports.
+- Redesigned all GemmaBuddy screens with a compact studio-style dark theme, modern controls, elevated cards, clearer status hierarchy, and role-tinted chat surfaces.

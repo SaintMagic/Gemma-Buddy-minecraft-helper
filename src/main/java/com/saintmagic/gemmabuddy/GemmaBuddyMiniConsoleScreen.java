@@ -48,7 +48,7 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         addActionButton("Stop", "stop", "", left + PAD * 2 + buttonWidth, y, buttonWidth);
         y += 20;
         addActionButton("Scan", "scan", "", left + PAD, y, buttonWidth);
-        addRenderableWidget(Button.builder(Component.literal("Find"), button -> findInput())
+        addRenderableWidget(ModernButton.create(Component.literal("Find"), button -> findInput())
                 .bounds(left + PAD * 2 + buttonWidth, y, buttonWidth, 18).build());
         y += 20;
         addActionButton("Track", "track_status", "", left + PAD, y, buttonWidth);
@@ -61,34 +61,38 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         addActionButton("Pause work", "work_pause", "", left + PAD * 2 + buttonWidth, y, buttonWidth);
         y += 20;
         addActionButton("Clear chat", "clear_chat", "", left + PAD, y, buttonWidth);
-        addRenderableWidget(Button.builder(Component.literal("Settings"),
+        addRenderableWidget(ModernButton.create(Component.literal("Settings"),
                 button -> GemmaBuddyClient.openSettingsScreen(this))
                 .bounds(left + PAD * 2 + buttonWidth, y, buttonWidth, 18).build());
 
-        input = new EditBox(font, left + PAD + 44, top + panelHeight - 48, innerWidth - PAD * 2 - 96, 18,
+        input = new ModernEditBox(font, left + PAD + 44, top + panelHeight - 48, innerWidth - PAD * 2 - 96, 18,
                 Component.empty());
         input.setHint(Component.literal("Ask or find..."));
         input.setMaxLength(256);
         addRenderableWidget(input);
 
-        addRenderableWidget(Button.builder(Component.literal(chatMode.name()), button -> {
+        addRenderableWidget(ModernButton.create(Component.literal(chatMode.name()), button -> {
             chatMode = chatMode.next();
             button.setMessage(Component.literal(chatMode.name()));
             clearButtonFocus();
-        }).bounds(left + PAD, top + panelHeight - 48, 40, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Send"), button -> submit())
-                .bounds(left + innerWidth - PAD - 48, top + panelHeight - 48, 48, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Open Full UI"), button -> GemmaBuddyClient.openScreen())
-                .bounds(left + PAD, top + panelHeight - 25, innerWidth - PAD * 2, 18).build());
+        }).bounds(left + PAD, top + panelHeight - 48, 40, 18).style(ModernButton.Style.PILL).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Send"), button -> submit())
+                .bounds(left + innerWidth - PAD - 48, top + panelHeight - 48, 48, 18)
+                .style(ModernButton.Style.PRIMARY).build());
+        addRenderableWidget(ModernButton.create(Component.literal("Open Full UI"), button -> GemmaBuddyClient.openScreen())
+                .bounds(left + PAD, top + panelHeight - 25, innerWidth - PAD * 2, 18)
+                .style(ModernButton.Style.GHOST).build());
         setFocused(input);
         input.setFocused(true);
     }
 
     private void addActionButton(String label, String actionId, String argument, int x, int y, int buttonWidth) {
-        addRenderableWidget(Button.builder(Component.literal(label), button -> {
+        ModernButton.Style style = "Stop".equals(label) ? ModernButton.Style.DANGER
+                : "Approve".equals(label) ? ModernButton.Style.SUCCESS : ModernButton.Style.SECONDARY;
+        addRenderableWidget(ModernButton.create(Component.literal(label), button -> {
             GemmaBuddyClient.sendGemmaAction(actionId, argument);
             clearButtonFocus();
-        }).bounds(x, y, buttonWidth, 18).build());
+        }).bounds(x, y, buttonWidth, 18).style(style).build());
     }
 
     private void clearButtonFocus() {
@@ -163,10 +167,11 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
         int innerWidth = Math.min(WIDTH, width - 12);
-        graphics.fill(left, top, left + innerWidth, top + panelHeight, 0xED0C1117);
-        graphics.fill(left, top, left + innerWidth, top + 2, ScreenTheme.ACCENT);
-        graphics.drawCenteredString(font, title, left + innerWidth / 2, top + 8, ScreenTheme.TEXT);
-        graphics.drawString(font, compactStatus(innerWidth - PAD * 2), left + PAD, top + 23,
+        ScreenTheme.backdrop(graphics, width, height);
+        ScreenTheme.card(graphics, left, top, innerWidth, panelHeight, true);
+        graphics.fill(left + 14, top, left + 54, top + 2, ScreenTheme.ACCENT);
+        graphics.drawCenteredString(font, title, left + innerWidth / 2, top + 9, ScreenTheme.TEXT);
+        graphics.drawString(font, compactStatus(innerWidth - PAD * 2), left + PAD, top + 24,
                 ScreenTheme.MUTED_TEXT, false);
 
         super.render(graphics, mouseX, mouseY, partialTick);
