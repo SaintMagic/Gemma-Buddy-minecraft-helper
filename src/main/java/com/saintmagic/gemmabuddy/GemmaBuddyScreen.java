@@ -33,6 +33,7 @@ public final class GemmaBuddyScreen extends Screen {
     private Button voiceButton;
     private String selectedCategoryId = ActionRegistry.BASIC;
     private int historyScrollOffset;
+    private int actionScrollOffset;
     private boolean suppressNextSpaceChar;
     private Layout layout;
 
@@ -153,6 +154,7 @@ public final class GemmaBuddyScreen extends Screen {
         if (sidebarClick.handled()) {
             if (!sidebarClick.category().isBlank()) {
                 selectedCategoryId = sidebarClick.category();
+                actionScrollOffset = 0;
             }
             reflowWidgets();
             focusMainInput();
@@ -169,6 +171,21 @@ public final class GemmaBuddyScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (this.layout != null && isOverActions(mouseX, mouseY)) {
+            int columns = layout.contentWidth >= 240 ? 2 : 1;
+            int total = (int) actionButtons.stream()
+                    .filter(action -> action.categoryId.equals(selectedCategoryId)).count();
+            int rows = (total + columns - 1) / columns;
+            int availableHeight = layout.actionsHeight - ACTION_PANEL_HEADER_HEIGHT
+                    - (categoryNeedsTargetInput(selectedCategoryId) ? ScreenTheme.INPUT_HEIGHT + ScreenTheme.GAP + 8 : 0)
+                    - ScreenTheme.PAD;
+            int visibleRows = Math.max(1, availableHeight / (ACTION_BUTTON_HEIGHT + ScreenTheme.GAP));
+            int maxOffset = Math.max(0, rows - visibleRows);
+            actionScrollOffset = Math.max(0, Math.min(maxOffset,
+                    actionScrollOffset + (scrollY < 0 ? 1 : scrollY > 0 ? -1 : 0)));
+            reflowWidgets();
+            return true;
+        }
         if (this.layout == null || !isOverHistory(mouseX, mouseY)) {
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         }
@@ -225,6 +242,9 @@ public final class GemmaBuddyScreen extends Screen {
 
         for (String categoryId : GemmaBuddy.actionRegistry().categories()) {
             for (ActionRegistry.ActionDefinition definition : GemmaBuddy.actionRegistry().actionsForCategory(categoryId)) {
+                if (!definition.uiVisible()) {
+                    continue;
+                }
                 Button button = Button.builder(Component.literal(definition.label()), clicked -> activateAction(definition))
                         .bounds(0, 0, ACTION_BUTTON_MIN_WIDTH, ACTION_BUTTON_HEIGHT)
                         .build();
@@ -354,7 +374,10 @@ public final class GemmaBuddyScreen extends Screen {
 
         List<String> segments = new ArrayList<>();
         segments.add("LM: " + GemmaBuddy.llmModel());
+        segments.add("Think: " + GemmaBuddy.config().thinkingMode().configValue());
         segments.add(GemmaBuddyClient.voiceStatusLine());
+        segments.add(GemmaBuddyClient.buddyStatusLine());
+        segments.add(GemmaBuddy.knowledgeIndex().isBusy() ? "Knowledge: working" : "Knowledge: ready");
         String goalLine = GemmaBuddy.goalManager().statusLine();
         if (!goalLine.isBlank()) {
             segments.add("Goal: " + goalLine);
@@ -452,16 +475,15 @@ public final class GemmaBuddyScreen extends Screen {
         int columns = width >= 240 ? 2 : 1;
         int columnWidth = columns == 1 ? width : Math.max(ACTION_BUTTON_MIN_WIDTH, (width - ScreenTheme.GAP) / 2);
         int rows = (visible.size() + columns - 1) / columns;
-        int gridHeight = rows * ACTION_BUTTON_HEIGHT + Math.max(0, rows - 1) * ScreenTheme.GAP;
-        int rowY = y;
+        int visibleRows = Math.max(1, height / (ACTION_BUTTON_HEIGHT + ScreenTheme.GAP));
+        actionScrollOffset = Math.max(0, Math.min(actionScrollOffset, Math.max(0, rows - visibleRows)));
         for (int i = 0; i < visible.size(); i++) {
             ActionUi action = visible.get(i);
             int column = i % columns;
-            if (column == 0 && i > 0) {
-                rowY += ACTION_BUTTON_HEIGHT + ScreenTheme.GAP;
-            }
-
-            action.button.visible = rowY + ACTION_BUTTON_HEIGHT <= y + height;
+            int row = i / columns;
+            int rowY = y + (row - actionScrollOffset) * (ACTION_BUTTON_HEIGHT + ScreenTheme.GAP);
+            action.button.visible = row >= actionScrollOffset && row < actionScrollOffset + visibleRows
+                    && rowY + ACTION_BUTTON_HEIGHT <= y + height;
             action.button.active = action.button.visible
                     && (!action.definition.longRunning() || !GemmaBuddy.knowledgeIndex().isBusy());
             action.button.setX(x + column * (columnWidth + ScreenTheme.GAP));
@@ -633,11 +655,20 @@ public final class GemmaBuddyScreen extends Screen {
                 && mouseY <= layout.contentY + layout.historyHeight;
     }
 
+    private boolean isOverActions(double mouseX, double mouseY) {
+        return layout != null
+                && mouseX >= layout.contentX
+                && mouseX <= layout.contentX + layout.contentWidth
+                && mouseY >= layout.actionsY
+                && mouseY <= layout.actionsY + layout.actionsHeight;
+    }
+
     private String categoryTitle(String categoryId) {
         return switch (categoryId) {
             case ActionRegistry.KNOWLEDGE -> "Knowledge";
             case ActionRegistry.BUDDY -> "Buddy";
             case ActionRegistry.PLANNING -> "Planning";
+            case ActionRegistry.FIND -> "Find";
             case ActionRegistry.DEBUG -> "Debug";
             default -> "Basic";
         };

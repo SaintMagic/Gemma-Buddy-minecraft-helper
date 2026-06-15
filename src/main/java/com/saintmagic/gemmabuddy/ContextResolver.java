@@ -93,6 +93,7 @@ public final class ContextResolver {
                 || query.equals("what does this do")
                 || query.equals("what can i do with this")
                 || query.equals("what is this for")
+                || query.equals("what is this")
                 || query.equals("how do i use this")
                 || query.equals("what mod added this")
                 || query.equals("what mod added it")

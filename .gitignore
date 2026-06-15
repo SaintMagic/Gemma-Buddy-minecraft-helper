@@ -40,3 +40,7 @@ run/
 repo/
 !**/src/**/repo/
 config/gemmabuddy/knowledge/
+logs/
+crash-reports/
+*.log
+*.class

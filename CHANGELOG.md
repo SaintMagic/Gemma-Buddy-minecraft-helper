@@ -1,0 +1,15 @@
+# Changelog
+
+## 0.1.0 - Local Companion Alpha
+
+- Centralized slash, chat, and G UI actions through the executable action registry.
+- Added configurable LM Studio profiles, thinking modes, timeouts, and reasoning suppression.
+- Added deterministic registry, recipe, usage, tag, mod ownership, and craftability answers.
+- Added structured planner fact packets with unique `action_ref` values and Java validation.
+- Added persistent local goals, notes, home, discoveries, and tracking state.
+- Added approval/deny/stop safety plumbing with destructive actions locked.
+- Added passive buddy modes for follow, stay, come, return home, and stop.
+- Added fair inventory/loaded-area/memory find without chunk loading.
+- Added action registry and planner self-checks.
+- Polished the G UI action coverage, status strip, focus handling, and action scrolling.
+- Added public setup, privacy, troubleshooting, and CI documentation.

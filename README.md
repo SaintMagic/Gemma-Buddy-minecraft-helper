@@ -1,73 +1,156 @@
-GemmaBuddy
-===========
+# GemmaBuddy
 
-GemmaBuddy is a NeoForge 1.21.1 read-only play-buddy mod for local singleplayer and LAN worlds.
+GemmaBuddy is a standalone local-first AI companion mod for NeoForge 1.21.1. It combines deterministic local modpack knowledge with an optional LM Studio model, a visible passive companion, persistent goals/notes, validated planning, and fair loaded-area search.
 
-Features in this milestone:
+## Requirements
 
-- `/gemmabuddy status`
-- `/gemmabuddy inventory`
-- `/gemmabuddy see`
-- `/gemmabuddy ask <message>`
-- `gemma status`
-- `gemma inventory`
-- `gemma what do you see`
-- `gemma what do we do`
-- `gemma ask <message>`
-- GemmaBuddy chat screen on `G`
-- Custom GemmaBuddy companion entity with `/gemmabuddy spawn`, `/gemmabuddy despawn`, and `/gemmabuddy where`
-- LM Studio chat completion support at `http://localhost:1234/v1/chat/completions`
-
-Requirements:
-
+- Minecraft 1.21.1
+- NeoForge 21.1.x
 - Java 21
-- NeoForge 1.21.1 world or instance
-- LM Studio running locally if you want the `ask` feature
+- LM Studio only for AI phrasing/planning; local status, knowledge, memory, movement controls, and find remain usable without it
 
-Run locally from this folder:
-
-```powershell
-.\gradlew runClient
-```
-
-Build the jar:
+## Build And Run
 
 ```powershell
-.\gradlew build
+.\gradlew.bat runClient
+.\gradlew.bat build
 ```
 
-The built jar is written to:
+The jar is written to:
 
 ```text
 build\libs\gemmabuddy-0.1.0.jar
 ```
 
-Copy that jar into your PrismLauncher instance `mods` folder, for example:
+Copy it to the `mods` folder of the matching NeoForge 1.21.1 PrismLauncher instance.
 
-```text
-%APPDATA%\.prismlauncher\instances\<your-instance>\minecraft\mods
-```
+## Controls
 
-If your PrismLauncher instance uses a different root, place the jar in that instance's `mods` directory.
+- `G`: full GemmaBuddy companion console
+- `V`: experimental push-to-talk when `enableVoiceControl=true`
+- Voice is disabled by default and never bypasses routing, permissions, or approvals.
 
-## Notes
-
-- The `G` key opens the GemmaBuddy chat screen.
-- The mod is read-only for this milestone: no movement, mining, inventory changes, or world edits.
-- If you want LM Studio to use a specific local model, set `GEMMABUDDY_LM_MODEL` or `LLM_MODEL` before launching Minecraft.
-- GeckoLib is included for future animated companion work; the current visible companion uses the lighter vanilla slim-humanoid renderer for stability.
-
-## Quick Test List
-
-In Minecraft chat, try:
+## Core Commands
 
 ```text
 /gemmabuddy status
 /gemmabuddy inventory
 /gemmabuddy see
-/gemmabuddy ask what should we do first?
-gemma status
-gemma inventory
-gemma what do you see
-gemma what do we do
+/gemmabuddy ask <message>
+/gemmabuddy plan <request>
+/gemmabuddy knowledge status
+/gemmabuddy knowledge rebuild
+/gemmabuddy recipe <target>
+/gemmabuddy uses <target>
+/gemmabuddy spawn
+/gemmabuddy despawn
+/gemmabuddy where
+/gemmabuddy follow
+/gemmabuddy stay
+/gemmabuddy come
+/gemmabuddy stop
+/gemmabuddy goal set <goal>
+/gemmabuddy goal status
+/gemmabuddy remember <note>
+/gemmabuddy notes
+/gemmabuddy find <target>
+/gemmabuddy scan
+/gemmabuddy approve
+/gemmabuddy deny
+/gemmabuddy selfcheck
 ```
+
+Normal chat aliases start with `gemma`, for example:
+
+```text
+gemma status
+gemma recipe for enchanting table
+gemma can i craft enchanting table now?
+gemma which mod adds spruce leaves
+gemma goal set build a starter base
+gemma remember check the village later
+gemma plan survive the night and work toward enchanting
+gemma follow me
+gemma find spruce log
+gemma stop
+```
+
+## LM Studio
+
+Start an OpenAI-compatible local server in LM Studio. GemmaBuddy creates:
+
+```text
+config/gemmabuddy/config.json
+```
+
+Important fields:
+
+- `lmStudioEndpoint`
+- `modelName`
+- `modelProfile`
+- `thinkingMode`: `off`, `auto`, or `on`
+- `maxTokensDefault` and `maxTokensPlanning`
+- `temperatureDefault` and `temperaturePlanning`
+- `requestTimeoutSeconds`
+- `retryWithoutThinkingOnTimeout`
+- `hideReasoningAlways`
+
+Recommended:
+
+- Gemma 4 26B A4B QAT with thinking off, if the machine runs it comfortably
+- Gemma 4 12B QAT with thinking off as the practical fallback
+- Gemma 4 E4B as the lightweight fallback
+
+DiffusionGemma 26B A4B is experimental and was not practical in current 12 GB VRAM testing.
+
+GemmaBuddy suppresses `reasoning_content`, thought channels, and leaked analysis. Java remains authoritative for recipes, counts, prerequisites, safety, and executable state.
+
+## Local Data And Privacy
+
+No cloud is required. GemmaBuddy does not upload the modpack index. Local files live under:
+
+```text
+config/gemmabuddy/
+config/gemmabuddy/knowledge/
+config/gemmabuddy/knowledge/docs/
+config/gemmabuddy/memory/
+```
+
+Knowledge cards are built from local registries, recipes, tags, and reports. Memory is bounded local JSON.
+
+## Safety
+
+- Default permission posture is read-only.
+- Movement requests require approval where appropriate.
+- `gemma stop` clears movement, tracking, queued work, and pending approval.
+- Mining, breaking, placing, attacking, looting, inventory manipulation, and autonomous building are locked.
+- Search only inspects inventory, remembered discoveries, and a configured loaded-area radius. It does not load chunks.
+- Building skills are plan-only.
+
+## Troubleshooting
+
+### LM Studio unavailable
+
+Check `lmStudioEndpoint`, confirm the local server is running, then use `/gemmabuddy lmstudio test`. Planning falls back to a small safe local plan when the model is unavailable.
+
+### Empty model response
+
+Keep thinking off first. GemmaBuddy retries/falls back without displaying reasoning. Increase the timeout only for planner mode.
+
+### Reasoning leakage
+
+Leave `hideReasoningAlways=true`. Report the model/server response in the log if visible thought text still appears.
+
+### Missing knowledge
+
+Run `/gemmabuddy knowledge rebuild`, then `/gemmabuddy knowledge status`. Generated reports and cards are written under `config/gemmabuddy/knowledge/`.
+
+## Known Limits
+
+- Tablet/mini-console item is not enabled yet.
+- No destructive autonomous actions.
+- No unloaded-chunk or whole-world search.
+- Some mod recipes expose alternatives without precise tag names; answers state what local data knows.
+- Experimental voice depends on a compatible local transcription endpoint and remains optional.
+
+See [ROADMAP.md](ROADMAP.md) and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).

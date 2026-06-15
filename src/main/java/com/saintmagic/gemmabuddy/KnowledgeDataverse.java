@@ -149,6 +149,19 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
                     "mod_origin",
                     List.of(entry.displayName() + " comes from " + entry.modName() + " (" + entry.modId() + ")."),
                     entry.registryId()));
+            case TAGS -> Optional.of(new DeterministicAnswer(
+                    "tags",
+                    List.of(doc.tags().isEmpty()
+                            ? "No local item/block tags are indexed for " + entry.displayName() + "."
+                            : entry.displayName() + " is in: " + joinWithAnd(limit(doc.tags(), 8)) + "."),
+                    entry.registryId()));
+            case RELATED -> Optional.of(new DeterministicAnswer(
+                    "related",
+                    List.of(doc.relatedEntries().isEmpty()
+                            ? "No related entries are known locally for " + entry.displayName() + "."
+                            : "Related to " + entry.displayName() + ": "
+                                    + joinWithAnd(limit(doc.relatedEntries(), 8)) + "."),
+                    entry.registryId()));
             case LOOKUP -> Optional.of(new DeterministicAnswer(
                     "lookup",
                     buildLookupLines(entry, doc),
@@ -731,6 +744,12 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
                 || normalized.startsWith("where is ") && normalized.endsWith(" from")) {
             return Intent.MOD_ORIGIN;
         }
+        if (normalized.startsWith("what tags is ") || normalized.startsWith("which tags is ")) {
+            return Intent.TAGS;
+        }
+        if (normalized.startsWith("what related items ") || normalized.startsWith("related items for ")) {
+            return Intent.RELATED;
+        }
         if (normalized.startsWith("what does ")
                 || normalized.startsWith("what is ")
                 || normalized.startsWith("what are ")) {
@@ -756,6 +775,8 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
                 }
                 yield stripPrefix(normalized, "which mod adds ", "what mod added ");
             }
+            case TAGS -> stripPrefix(normalized, "what tags is ", "which tags is ");
+            case RELATED -> stripPrefix(normalized, "what related items ", "related items for ");
             case PRACTICAL_LOOKUP -> {
                 if (normalized.startsWith("what does ")) {
                     yield stripTrailingDo(normalized.substring("what does ".length()).trim());
@@ -1038,7 +1059,9 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
         RECIPE,
         USAGE,
         USAGE_FOLLOW_UP,
-        MOD_ORIGIN
+        MOD_ORIGIN,
+        TAGS,
+        RELATED
     }
 
     private static final class MutableEntry {

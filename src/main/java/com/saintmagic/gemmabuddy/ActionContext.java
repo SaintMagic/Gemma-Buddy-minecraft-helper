@@ -19,5 +19,9 @@ public record ActionContext(
         KnowledgeIndex knowledge,
         KnowledgeRepository repository,
         GoalManager goals,
+        MemoryManager memory,
+        SafetyManager safety,
+        FindService find,
+        PlannerService planner,
         LmStudioClient llm) {
 }

@@ -25,14 +25,23 @@ public final class CommandRouter {
     private final GoalManager goals;
     private final KnowledgeIndex knowledge;
     private final KnowledgeRepository repository;
+    private final MemoryManager memory;
+    private final SafetyManager safety;
+    private final FindService find;
+    private final PlannerService planner;
     private final LmStudioClient llm;
 
     public CommandRouter(ActionRegistry actions, GoalManager goals, KnowledgeIndex knowledge,
-            KnowledgeRepository repository, LmStudioClient llm) {
+            KnowledgeRepository repository, MemoryManager memory, SafetyManager safety, FindService find,
+            PlannerService planner, LmStudioClient llm) {
         this.actions = actions;
         this.goals = goals;
         this.knowledge = knowledge;
         this.repository = repository;
+        this.memory = memory;
+        this.safety = safety;
+        this.find = find;
+        this.planner = planner;
         this.llm = llm;
     }
 
@@ -89,6 +98,10 @@ public final class CommandRouter {
                 knowledge,
                 repository,
                 goals,
+                memory,
+                safety,
+                find,
+                planner,
                 llm);
 
         LOGGER.info("GemmaBuddy action resolved id='{}' alias='{}' argument='{}' input='{}'",
@@ -114,6 +127,10 @@ public final class CommandRouter {
                 knowledge,
                 repository,
                 goals,
+                memory,
+                safety,
+                find,
+                planner,
                 llm);
         LOGGER.info("GemmaBuddy fallback routed to plan input='{}'", input);
         return actions.execute(context, plan.id());
@@ -138,6 +155,10 @@ public final class CommandRouter {
                     knowledge,
                     repository,
                     goals,
+                    memory,
+                    safety,
+                    find,
+                    planner,
                     llm);
             ActionResult result = actions.execute(context, definition.id());
             return result.success() ? 1 : 0;
@@ -193,7 +214,8 @@ public final class CommandRouter {
     private boolean placeholderIsGreedy(String token) {
         String lower = normalize(token).toLowerCase(Locale.ROOT);
         return lower.contains("message") || lower.contains("question") || lower.contains("text")
-                || lower.contains("input") || lower.contains("query");
+                || lower.contains("input") || lower.contains("query") || lower.contains("request")
+                || lower.contains("goal") || lower.contains("note") || lower.contains("target");
     }
 
     private String friendlyError(Throwable ex) {

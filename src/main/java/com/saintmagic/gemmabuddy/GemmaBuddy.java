@@ -35,23 +35,22 @@ public final class GemmaBuddy {
     public static final String CHAT_PREFIX = "[GemmaBuddy] ";
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final String LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions";
-    private static final String LM_STUDIO_MODEL = firstNonBlank(
-            System.getenv("GEMMABUDDY_LM_MODEL"),
-            System.getenv("LLM_MODEL"),
-            "local-model");
     private static final String COMPANION_TAG = "gemmabuddy_companion";
     private static final String COMPANION_NAME = "GemmaBuddy";
     private static final int COMPANION_SEARCH_RADIUS = 128;
 
     private static final GemmaBuddyConfig CONFIG = new GemmaBuddyConfig();
+    private static final MemoryManager MEMORY = createMemoryManager();
+    private static final SafetyManager SAFETY = new SafetyManager();
     private static final ActionRegistry ACTION_REGISTRY = new ActionRegistry();
-    private static final GoalManager GOAL_MANAGER = new GoalManager();
+    private static final GoalManager GOAL_MANAGER = new GoalManager(MEMORY);
     private static final KnowledgeIndex KNOWLEDGE_INDEX = new KnowledgeIndex();
     private static final KnowledgeRepository KNOWLEDGE_REPOSITORY = new KnowledgeDataverse(KNOWLEDGE_INDEX);
-    private static final LmStudioClient LLM = new LmStudioClient(LM_STUDIO_URL, LM_STUDIO_MODEL);
+    private static final FindService FIND_SERVICE = new FindService(KNOWLEDGE_REPOSITORY, MEMORY);
+    private static final PlannerService PLANNER_SERVICE = new PlannerService();
+    private static final LmStudioClient LLM = new LmStudioClient(CONFIG);
     private static final CommandRouter COMMAND_ROUTER = new CommandRouter(ACTION_REGISTRY, GOAL_MANAGER,
-            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, LLM);
+            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, MEMORY, SAFETY, FIND_SERVICE, PLANNER_SERVICE, LLM);
 
     public GemmaBuddy(IEventBus modEventBus) {
         CONFIG.load();
@@ -59,7 +58,7 @@ public final class GemmaBuddy {
         modEventBus.addListener(this::onEntityAttributeCreation);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
-        LOGGER.info("GemmaBuddy loaded. LM Studio endpoint: {}", LM_STUDIO_URL);
+        LOGGER.info("GemmaBuddy loaded. LM Studio endpoint: {}", CONFIG.lmStudioEndpoint());
     }
 
     public static ActionRegistry actionRegistry() {
@@ -76,14 +75,15 @@ public final class GemmaBuddy {
 
     public static void reloadConfig() {
         CONFIG.load();
+        MEMORY.load();
     }
 
     public static String llmEndpoint() {
-        return LM_STUDIO_URL;
+        return CONFIG.lmStudioEndpoint();
     }
 
     public static String llmModel() {
-        return LM_STUDIO_MODEL;
+        return CONFIG.modelName();
     }
 
     public static KnowledgeIndex knowledgeIndex() {
@@ -95,11 +95,20 @@ public final class GemmaBuddy {
     }
 
     public static String llmStatusLine() {
-        return "LM Studio: " + LM_STUDIO_URL + " | model: " + LM_STUDIO_MODEL;
+        return "LM Studio: " + CONFIG.lmStudioEndpoint() + " | model: " + CONFIG.modelName()
+                + " | thinking: " + CONFIG.thinkingMode().configValue();
     }
 
     public static CommandRouter commandRouter() {
         return COMMAND_ROUTER;
+    }
+
+    public static MemoryManager memoryManager() {
+        return MEMORY;
+    }
+
+    public static SafetyManager safetyManager() {
+        return SAFETY;
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
@@ -154,6 +163,8 @@ public final class GemmaBuddy {
         buddy.setCustomNameVisible(true);
         buddy.setPersistenceRequired();
         buddy.addTag(COMPANION_TAG);
+        buddy.setOwnerUuid(player.getUUID());
+        buddy.setBuddyMode(GemmaBuddyEntity.BuddyMode.IDLE);
 
         level.addFreshEntity(buddy);
         sendLine(player, "GemmaBuddy spawned at " + formatPosition(buddy.blockPosition()) + ".");
@@ -184,10 +195,10 @@ public final class GemmaBuddy {
 
         GemmaBuddyEntity buddy = buddies.get(0);
         sendLine(player, "GemmaBuddy is at " + formatPosition(buddy.blockPosition()) + " in "
-                + level.dimension().location() + ".");
+                + level.dimension().location() + ", mode=" + buddy.buddyMode().name().toLowerCase(Locale.ROOT) + ".");
     }
 
-    private static List<GemmaBuddyEntity> findBuddyEntities(ServerLevel level, ServerPlayer player) {
+    public static List<GemmaBuddyEntity> findBuddyEntities(ServerLevel level, ServerPlayer player) {
         AABB searchBox = player.getBoundingBox().inflate(COMPANION_SEARCH_RADIUS);
         List<GemmaBuddyEntity> result = new java.util.ArrayList<>();
         for (GemmaBuddyEntity buddy : level.getEntitiesOfClass(GemmaBuddyEntity.class, searchBox,
@@ -196,6 +207,41 @@ public final class GemmaBuddy {
         }
         result.sort(Comparator.comparingDouble(buddy -> buddy.distanceToSqr(player)));
         return result;
+    }
+
+    public static GemmaBuddyEntity nearestBuddy(ServerPlayer player) {
+        List<GemmaBuddyEntity> buddies = findBuddyEntities(player.serverLevel(), player);
+        return buddies.isEmpty() ? null : buddies.get(0);
+    }
+
+    public static ActionResult setBuddyMode(ServerPlayer player, GemmaBuddyEntity.BuddyMode mode) {
+        GemmaBuddyEntity buddy = nearestBuddy(player);
+        if (buddy == null) {
+            sendError(player, "GemmaBuddy is not spawned. Use /gemmabuddy spawn first.");
+            return ActionResult.failure("Buddy is not spawned.");
+        }
+        buddy.setOwnerUuid(player.getUUID());
+        if (mode == GemmaBuddyEntity.BuddyMode.RETURN_HOME) {
+            MemoryManager.HomeLocation home = MEMORY.home();
+            if (home == null) {
+                sendError(player, "No home is marked yet.");
+                return ActionResult.failure("Home is not marked.");
+            }
+            if (!home.dimension().equals(player.level().dimension().location().toString())) {
+                sendError(player, "Home is in another dimension; cross-dimension movement is locked.");
+                return ActionResult.failure("Home is in another dimension.");
+            }
+            buddy.setHomePosition(home.position());
+        }
+        buddy.setBuddyMode(mode);
+        sendLine(player, "Buddy mode: " + mode.name().toLowerCase(Locale.ROOT) + ".");
+        return ActionResult.success("Buddy mode changed.");
+    }
+
+    private static MemoryManager createMemoryManager() {
+        MemoryManager memory = new MemoryManager();
+        memory.load();
+        return memory;
     }
 
     private static boolean isCompanion(GemmaBuddyEntity mob) {

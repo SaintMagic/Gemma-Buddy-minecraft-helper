@@ -1,0 +1,46 @@
+# GemmaBuddy Implementation Status
+
+Updated for the local companion alpha pass.
+
+## Implemented
+
+- NeoForge 1.21.1 standalone mod and custom companion entity.
+- Shared `CommandRouter -> ActionRegistry -> ActionDefinition -> ActionResult` path.
+- Slash commands, `gemma ...` chat aliases, and G UI action dispatch.
+- Local status, inventory, nearby block/entity scanning, and context resolution.
+- Local mod reports and vanilla/modded registry lookup.
+- In-memory knowledge dataverse with exact recipe, usage, tag, and ownership evidence.
+- On-demand local documentation cards.
+- Optional LM Studio client with empty-content/reasoning fallback handling.
+- Experimental voice control disabled by default.
+- Persistent local goals, notes, home, discoveries, and tracking state.
+- Structured planner packets with unique action refs and Java validation.
+- Approval/deny/stop safety plumbing.
+- Passive follow/stay/come/return-home movement modes.
+- Fair inventory/loaded-area/memory find without chunk loading.
+
+## Partial Alpha
+
+- Grounded Q&A: deterministic recipes/usages work; inventory-aware craftability and broader evidence coverage are being expanded.
+- Planning: strict proposal parsing and validation work; the available-action catalog is intentionally small and plan-only.
+- Grounded Q&A: exact local recipes/usages/craftability work, but guidebook, quest, loot, and machine evidence coverage is incomplete.
+- Safety: approval plumbing works; granular per-player permission profiles and durable task queues remain partial.
+- Buddy movement: explicit modes work, but advanced path recovery and cross-dimension travel are locked.
+- Fair Find: inventory, drops, entities, loaded blocks, and memory work; container observation is not implemented.
+
+## Locked / Plan-Only
+
+- Mining, breaking, placing, attacking, hunting, looting, inventory manipulation, and autonomous building.
+- Whole-world or unloaded-chunk search.
+- Tablet/mini console until the shared action and find systems are stable.
+- Building skills execute as plans only.
+- Voice cannot bypass routing, safety, or approvals.
+
+## Safety Invariants
+
+- Java is authoritative for recipes, ingredient counts, inventory counts, prerequisites, and safety.
+- The LLM may propose or phrase; it cannot authorize execution.
+- Model reasoning is never displayed.
+- Every planner step uses a unique `action_ref`; repeated `action_id` values are allowed only as action types.
+- `gemma stop` cancels active movement, tracking, queued work, and pending approval.
+- Missing or unavailable systems return a friendly locked/partial result rather than fake success.

@@ -92,6 +92,18 @@ public final class GemmaBuddyClient {
         return VOICE_CONTROL.statusLine();
     }
 
+    public static String buddyStatusLine() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.player == null) {
+            return "Buddy: offline";
+        }
+        GemmaBuddyEntity nearest = minecraft.level.getEntitiesOfClass(GemmaBuddyEntity.class,
+                minecraft.player.getBoundingBox().inflate(128.0D)).stream()
+                .min(java.util.Comparator.comparingDouble(entity -> entity.distanceToSqr(minecraft.player)))
+                .orElse(null);
+        return nearest == null ? "Buddy: absent" : "Buddy: present";
+    }
+
     public static void toggleVoiceCapture() {
         if (!isVoiceControlEnabled()) {
             GemmaBuddyScreen.addSystemMessage("Voice control is disabled. Enable it in config.json to use it.");

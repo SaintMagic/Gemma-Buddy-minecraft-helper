@@ -12,6 +12,15 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class GoalManager {
     private final AtomicReference<GoalState> state = new AtomicReference<>(GoalState.idle());
+    private final MemoryManager memory;
+
+    public GoalManager(MemoryManager memory) {
+        this.memory = memory;
+        String savedGoal = memory.currentGoal();
+        if (!savedGoal.isBlank()) {
+            state.set(new GoalState(savedGoal, List.of(), false, Instant.now(), "Restored from local memory"));
+        }
+    }
 
     public GoalState snapshot() {
         return state.get();
@@ -19,15 +28,20 @@ public final class GoalManager {
 
     public void clear() {
         state.set(GoalState.idle());
+        memory.clearGoal();
     }
 
     public void setGoal(String title, List<String> subgoals, boolean busy) {
+        String normalizedTitle = normalize(title);
         state.set(new GoalState(
-                normalize(title),
+                normalizedTitle,
                 List.copyOf(subgoals == null ? List.of() : subgoals),
                 busy,
                 Instant.now(),
                 ""));
+        if (!busy) {
+            memory.setGoal(normalizedTitle);
+        }
     }
 
     public void updateProgress(String progressMessage) {
@@ -35,7 +49,8 @@ public final class GoalManager {
     }
 
     public void markComplete(String message) {
-        state.updateAndGet(current -> current.withCompletion(message));
+        String savedGoal = memory.currentGoal();
+        state.set(new GoalState(savedGoal, List.of(), false, Instant.now(), normalize(message)));
     }
 
     public boolean isBusy() {
@@ -44,8 +59,11 @@ public final class GoalManager {
 
     public String statusLine() {
         GoalState current = state.get();
+        if (current.title().isBlank()) {
+            return "No active goal.";
+        }
         if (!current.busy()) {
-            return "Knowledge index ready.";
+            return current.title() + (current.progress().isBlank() ? "" : " - " + current.progress());
         }
 
         StringBuilder builder = new StringBuilder();
@@ -79,8 +97,5 @@ public final class GoalManager {
             return new GoalState(title, subgoals, busy, startedAt, normalize(newProgress));
         }
 
-        GoalState withCompletion(String completionMessage) {
-            return new GoalState(title, subgoals, false, startedAt, normalize(completionMessage));
-        }
     }
 }
