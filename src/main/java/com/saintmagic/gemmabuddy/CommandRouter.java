@@ -82,7 +82,13 @@ public final class CommandRouter {
             return executeResolved(player, input, resolved);
         }
 
-        return executeFallbackPlan(player, input);
+        if (canonical.startsWith("/gemmabuddy")) {
+            GemmaBuddy.sendError(player, "Use /gemmabuddy commands directly, without gemma.");
+            return ActionResult.failure("Slash command was wrapped in chat.");
+        }
+        GemmaBuddy.sendError(player, "I do not recognize that GemmaBuddy command. Use gemma ask <question>, "
+                + "gemma plan <goal>, or a known command such as /gemmabuddy status.");
+        return ActionResult.failure("Unsupported GemmaBuddy command.");
     }
 
     private ActionResult executeResolved(ServerPlayer player, String input, ActionRegistry.ResolvedAction resolved)
@@ -110,34 +116,6 @@ public final class CommandRouter {
         LOGGER.info("GemmaBuddy action resolved id='{}' alias='{}' argument='{}' input='{}'",
                 definition.id(), resolved.matchedAlias(), argument, input);
         return actions.execute(context, definition.id());
-    }
-
-    private ActionResult executeFallbackPlan(ServerPlayer player, String input) throws Exception {
-        ActionRegistry.ActionDefinition plan = actions.findById("plan").orElse(null);
-        if (plan == null) {
-            GemmaBuddy.sendError(player, "GemmaBuddy has no planning action registered.");
-            return ActionResult.failure("Planning action missing.");
-        }
-
-        ActionContext context = new ActionContext(
-                player,
-                plan.id(),
-                input,
-                input,
-                input,
-                "",
-                StateSnapshot.capture(player),
-                knowledge,
-                repository,
-                goals,
-                memory,
-                safety,
-                find,
-                planner,
-                skills,
-                llm);
-        LOGGER.info("GemmaBuddy fallback routed to plan input='{}'", input);
-        return actions.execute(context, plan.id());
     }
 
     private int runSlash(ServerPlayer player, String actionId, String argument) {

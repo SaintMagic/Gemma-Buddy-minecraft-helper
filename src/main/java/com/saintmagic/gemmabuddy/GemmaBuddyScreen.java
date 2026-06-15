@@ -20,6 +20,9 @@ public final class GemmaBuddyScreen extends Screen {
     private static final int HISTORY_LIMIT = 300;
     private static final int SEND_BUTTON_WIDTH = 56;
     private static final int VOICE_BUTTON_WIDTH = 60;
+    private static final int MODE_BUTTON_WIDTH = 48;
+    private static final int GEAR_BUTTON_WIDTH = 22;
+    private static final int RAIL_TOGGLE_WIDTH = 22;
     private static final int ACTION_BUTTON_MIN_WIDTH = 96;
     private static final int ACTION_BUTTON_HEIGHT = 18;
     private static final int ACTION_PANEL_HEADER_HEIGHT = 18;
@@ -31,10 +34,18 @@ public final class GemmaBuddyScreen extends Screen {
     private EditBox targetInput;
     private Button sendButton;
     private Button voiceButton;
+    private Button modeButton;
+    private Button settingsButton;
+    private Button railToggleButton;
+    private Button approveButton;
+    private Button denyButton;
     private String selectedCategoryId = ActionRegistry.BASIC;
     private int historyScrollOffset;
     private int actionScrollOffset;
     private boolean suppressNextSpaceChar;
+    private boolean actionRailCollapsed;
+    private boolean approvalDismissed;
+    private GemmaBuddyChatMode chatMode = GemmaBuddyChatMode.ASK;
     private Layout layout;
 
     public GemmaBuddyScreen() {
@@ -80,6 +91,10 @@ public final class GemmaBuddyScreen extends Screen {
         return new ArrayList<>(HISTORY);
     }
 
+    public static synchronized void clearHistory() {
+        HISTORY.clear();
+    }
+
     private static void addEntry(ChatEntry.Role role, String message) {
         if (message == null || message.isBlank()) {
             return;
@@ -100,6 +115,11 @@ public final class GemmaBuddyScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (pendingApprovalVisible()) {
+                approvalDismissed = true;
+                reflowWidgets();
+                return true;
+            }
             onClose();
             return true;
         }
@@ -172,7 +192,7 @@ public final class GemmaBuddyScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (this.layout != null && isOverActions(mouseX, mouseY)) {
-            int columns = layout.contentWidth >= 240 ? 2 : 1;
+            int columns = layout.actionsWidth >= 210 ? 2 : 1;
             int total = (int) actionButtons.stream()
                     .filter(action -> action.categoryId.equals(selectedCategoryId)).count();
             int rows = (total + columns - 1) / columns;
@@ -220,6 +240,7 @@ public final class GemmaBuddyScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
         renderForeground(graphics, mouseX, mouseY);
         renderHistoryText(graphics);
+        renderApprovalOverlay(graphics, mouseX, mouseY, partialTick);
         Component tooltip = hoveredTooltip(mouseX, mouseY);
         if (tooltip != null && !tooltip.getString().isBlank()) {
             graphics.renderTooltip(this.font, tooltip, mouseX, mouseY);
@@ -273,27 +294,71 @@ public final class GemmaBuddyScreen extends Screen {
                 .bounds(0, 0, VOICE_BUTTON_WIDTH, ScreenTheme.INPUT_HEIGHT)
                 .build();
         this.addRenderableWidget(this.voiceButton);
+
+        this.modeButton = Button.builder(Component.literal("ASK"), clicked -> {
+            this.chatMode = this.chatMode.next();
+            clicked.setMessage(Component.literal(this.chatMode.name()));
+            focusMainInput();
+        }).bounds(0, 0, MODE_BUTTON_WIDTH, ScreenTheme.INPUT_HEIGHT).build();
+        this.addRenderableWidget(this.modeButton);
+
+        this.settingsButton = Button.builder(Component.literal("\u2699"),
+                clicked -> GemmaBuddyClient.openSettingsScreen(this))
+                .bounds(0, 0, GEAR_BUTTON_WIDTH, 18).build();
+        this.addRenderableWidget(this.settingsButton);
+
+        this.railToggleButton = Button.builder(Component.literal("<"), clicked -> {
+            this.actionRailCollapsed = !this.actionRailCollapsed;
+            clicked.setMessage(Component.literal(this.actionRailCollapsed ? ">" : "<"));
+            this.layout = computeLayout();
+            reflowWidgets();
+            focusMainInput();
+        }).bounds(0, 0, RAIL_TOGGLE_WIDTH, 18).build();
+        this.addRenderableWidget(this.railToggleButton);
+
+        this.approveButton = Button.builder(Component.literal("Approve"), clicked -> {
+            GemmaBuddyClient.sendGemmaAction("approve", "");
+            approvalDismissed = true;
+            focusMainInput();
+        }).bounds(0, 0, 64, 18).build();
+        this.addRenderableWidget(this.approveButton);
+
+        this.denyButton = Button.builder(Component.literal("Deny"), clicked -> {
+            GemmaBuddyClient.sendGemmaAction("deny", "");
+            approvalDismissed = true;
+            focusMainInput();
+        }).bounds(0, 0, 52, 18).build();
+        this.addRenderableWidget(this.denyButton);
     }
 
     private Layout computeLayout() {
         int bodyTop = ScreenTheme.MARGIN + ScreenTheme.TOP_HEIGHT + ScreenTheme.GAP;
         int inputY = this.height - ScreenTheme.MARGIN - ScreenTheme.INPUT_HEIGHT;
         int bodyBottom = inputY - ScreenTheme.GAP;
-        int bodyHeight = Math.max(80, bodyBottom - bodyTop);
+        int bodyHeight = Math.max(40, bodyBottom - bodyTop);
+        if (this.width < 430) {
+            sidebar.setCollapsed(true);
+        }
         int sidebarWidth = sidebar.width();
         int sidebarX = ScreenTheme.MARGIN;
         int contentX = sidebarX + sidebarWidth + ScreenTheme.GAP;
-        int contentWidth = Math.max(124, this.width - contentX - ScreenTheme.MARGIN);
-        int historyHeight = computeHistoryHeight(bodyHeight);
-        int actionsY = bodyTop + historyHeight + ScreenTheme.GAP;
-        int actionsHeight = Math.max(44, bodyTop + bodyHeight - actionsY);
+        int actionWidth = actionRailCollapsed ? RAIL_TOGGLE_WIDTH + ScreenTheme.PAD * 2
+                : this.width < 430 ? 116 : Math.max(150, Math.min(256, this.width / 4));
+        int actionsX = this.width - ScreenTheme.MARGIN - actionWidth;
+        int contentWidth = Math.max(60, actionsX - ScreenTheme.GAP - contentX);
+        int historyHeight = bodyHeight;
+        int actionsY = bodyTop;
+        int actionsHeight = bodyHeight;
         int sendX = this.width - ScreenTheme.MARGIN - SEND_BUTTON_WIDTH;
         int voiceX = sendX - ScreenTheme.GAP - VOICE_BUTTON_WIDTH;
-        int inputWidth = Math.max(80, voiceX - ScreenTheme.GAP - ScreenTheme.MARGIN);
+        int modeX = ScreenTheme.MARGIN;
+        int inputX = modeX + MODE_BUTTON_WIDTH + ScreenTheme.GAP;
+        int inputWidth = Math.max(60, voiceX - ScreenTheme.GAP - inputX);
 
         sidebar.setBounds(sidebarX, bodyTop, bodyHeight);
         return new Layout(sidebarX, bodyTop, sidebarWidth, bodyHeight, contentX, bodyTop, contentWidth,
-                historyHeight, actionsY, actionsHeight, inputY, inputWidth, sendX, voiceX);
+                historyHeight, actionsX, actionWidth, actionsY, actionsHeight, inputY, inputX, inputWidth, sendX,
+                voiceX, modeX);
     }
 
     private void reflowWidgets() {
@@ -301,28 +366,44 @@ public final class GemmaBuddyScreen extends Screen {
             this.layout = computeLayout();
         }
 
-        boolean showTarget = categoryNeedsTargetInput(selectedCategoryId);
+        boolean showTarget = !actionRailCollapsed && categoryNeedsTargetInput(selectedCategoryId);
         int targetHeight = showTarget ? ScreenTheme.INPUT_HEIGHT + ScreenTheme.GAP + 8 : 0;
         if (this.targetInput != null) {
             this.targetInput.visible = showTarget;
             this.targetInput.active = showTarget;
-            this.targetInput.setX(layout.contentX + ScreenTheme.PAD);
+            this.targetInput.setX(layout.actionsX + ScreenTheme.PAD);
             this.targetInput.setY(layout.actionsY + ACTION_PANEL_HEADER_HEIGHT + 2);
-            this.targetInput.setWidth(Math.max(80, layout.contentWidth - ScreenTheme.PAD * 2));
+            this.targetInput.setWidth(Math.max(60, layout.actionsWidth - ScreenTheme.PAD * 2));
         }
 
-        layoutActions(layout.contentX + ScreenTheme.PAD,
+        layoutActions(layout.actionsX + ScreenTheme.PAD,
                 layout.actionsY + ACTION_PANEL_HEADER_HEIGHT + targetHeight,
-                layout.contentWidth - ScreenTheme.PAD * 2,
+                layout.actionsWidth - ScreenTheme.PAD * 2,
                 layout.actionsHeight - ACTION_PANEL_HEADER_HEIGHT - targetHeight - ScreenTheme.PAD);
 
         if (this.mainInput != null) {
-            this.mainInput.setX(ScreenTheme.MARGIN);
+            this.mainInput.setX(layout.inputX);
             this.mainInput.setY(layout.inputY);
             this.mainInput.setWidth(layout.inputWidth);
             this.mainInput.visible = true;
             this.mainInput.active = true;
         }
+        if (this.modeButton != null) {
+            this.modeButton.setX(layout.modeX);
+            this.modeButton.setY(layout.inputY);
+            this.modeButton.setWidth(MODE_BUTTON_WIDTH);
+            this.modeButton.setMessage(Component.literal(chatMode.name()));
+        }
+        if (this.settingsButton != null) {
+            this.settingsButton.setX(this.width - ScreenTheme.MARGIN - GEAR_BUTTON_WIDTH);
+            this.settingsButton.setY(ScreenTheme.MARGIN + 2);
+        }
+        if (this.railToggleButton != null) {
+            this.railToggleButton.setX(layout.actionsX + layout.actionsWidth - RAIL_TOGGLE_WIDTH - 2);
+            this.railToggleButton.setY(layout.actionsY + 2);
+            this.railToggleButton.setMessage(Component.literal(actionRailCollapsed ? ">" : "<"));
+        }
+        layoutApprovalButtons();
         if (this.sendButton != null) {
             this.sendButton.setX(layout.sendX);
             this.sendButton.setY(layout.inputY);
@@ -347,16 +428,100 @@ public final class GemmaBuddyScreen extends Screen {
                 ScreenTheme.MARGIN + ScreenTheme.TOP_HEIGHT, ScreenTheme.PANEL);
         graphics.fill(layout.contentX, layout.contentY, layout.contentX + layout.contentWidth,
                 layout.contentY + layout.historyHeight, ScreenTheme.PANEL);
-        graphics.fill(layout.contentX, layout.actionsY, layout.contentX + layout.contentWidth,
+        graphics.fill(layout.actionsX, layout.actionsY, layout.actionsX + layout.actionsWidth,
                 layout.actionsY + layout.actionsHeight, ScreenTheme.PANEL_SOFT);
         graphics.fill(ScreenTheme.MARGIN, layout.inputY - 2, this.width - ScreenTheme.MARGIN,
                 layout.inputY + ScreenTheme.INPUT_HEIGHT + 2, ScreenTheme.PANEL);
 
         graphics.fill(layout.contentX, layout.contentY, layout.contentX + layout.contentWidth, layout.contentY + 1,
                 ScreenTheme.ACCENT);
-        graphics.fill(layout.contentX, layout.actionsY, layout.contentX + layout.contentWidth, layout.actionsY + 1,
+        graphics.fill(layout.actionsX, layout.actionsY, layout.actionsX + layout.actionsWidth, layout.actionsY + 1,
                 ScreenTheme.ACCENT);
+    }
 
+    private void layoutApprovalButtons() {
+        SafetyManager.PendingApprovalView pending = pendingApproval();
+        boolean visible = pending != null && !approvalDismissed;
+        int panelWidth = Math.min(300, Math.max(210, layout.contentWidth - 20));
+        int panelX = layout.contentX + Math.max(6, (layout.contentWidth - panelWidth) / 2);
+        int panelY = layout.contentY + Math.max(20, (layout.historyHeight - 94) / 2);
+        if (approveButton != null) {
+            approveButton.visible = visible;
+            approveButton.active = visible;
+            approveButton.setX(panelX + panelWidth - 126);
+            approveButton.setY(panelY + 68);
+        }
+        if (denyButton != null) {
+            denyButton.visible = visible;
+            denyButton.active = visible;
+            denyButton.setX(panelX + panelWidth - 58);
+            denyButton.setY(panelY + 68);
+        }
+    }
+
+    private void renderApprovalPanel(GuiGraphics graphics) {
+        if (!pendingApprovalVisible()) {
+            return;
+        }
+        int panelWidth = Math.min(300, Math.max(210, layout.contentWidth - 20));
+        int panelX = layout.contentX + Math.max(6, (layout.contentWidth - panelWidth) / 2);
+        int panelY = layout.contentY + Math.max(20, (layout.historyHeight - 94) / 2);
+        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 92, 0xF0181D23);
+        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 2, ScreenTheme.GOLD);
+    }
+
+    private void renderApprovalOverlay(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (!pendingApprovalVisible()) {
+            return;
+        }
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 330);
+        renderApprovalPanel(graphics);
+        renderApprovalText(graphics);
+        if (approveButton != null) {
+            approveButton.render(graphics, mouseX, mouseY, partialTick);
+        }
+        if (denyButton != null) {
+            denyButton.render(graphics, mouseX, mouseY, partialTick);
+        }
+        graphics.pose().popPose();
+    }
+
+    private void renderApprovalText(GuiGraphics graphics) {
+        SafetyManager.PendingApprovalView pending = pendingApproval();
+        if (pending == null || approvalDismissed) {
+            return;
+        }
+        int panelWidth = Math.min(300, Math.max(210, layout.contentWidth - 20));
+        int panelX = layout.contentX + Math.max(6, (layout.contentWidth - panelWidth) / 2);
+        int panelY = layout.contentY + Math.max(20, (layout.historyHeight - 94) / 2);
+        graphics.drawString(font, "Approval requested", panelX + 8, panelY + 8, ScreenTheme.GOLD, false);
+        graphics.drawString(font, fitText("Action: " + pending.actionId(), panelWidth - 16),
+                panelX + 8, panelY + 22, ScreenTheme.TEXT, false);
+        graphics.drawString(font, fitText("Target: " + pending.target(), panelWidth - 16),
+                panelX + 8, panelY + 34, ScreenTheme.MUTED_TEXT, false);
+        graphics.drawString(font, fitText("Safety: " + pending.safetyLevel().name().toLowerCase()
+                + " | " + pending.secondsRemaining() + "s", panelWidth - 16),
+                panelX + 8, panelY + 46, ScreenTheme.MUTED_TEXT, false);
+        graphics.drawString(font, fitText(pending.expectedEffect(), panelWidth - 16),
+                panelX + 8, panelY + 57, ScreenTheme.SYSTEM_TEXT, false);
+    }
+
+    private SafetyManager.PendingApprovalView pendingApproval() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return null;
+        }
+        SafetyManager.PendingApprovalView pending = GemmaBuddy.safetyManager()
+                .pendingApproval(minecraft.player.getUUID());
+        if (pending == null) {
+            approvalDismissed = false;
+        }
+        return pending;
+    }
+
+    private boolean pendingApprovalVisible() {
+        return pendingApproval() != null && !approvalDismissed;
     }
 
     private void renderForeground(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -388,17 +553,21 @@ public final class GemmaBuddyScreen extends Screen {
             segments.add("Goal: " + goalLine);
         }
         String status = fitText(String.join("  |  ", segments),
-                Math.max(80, this.width - ScreenTheme.MARGIN * 3 - this.font.width(this.title) - 16));
+                Math.max(80, this.width - ScreenTheme.MARGIN * 3 - this.font.width(this.title)
+                        - GEAR_BUTTON_WIDTH - 22));
         int statusWidth = this.font.width(status);
-        graphics.drawString(this.font, status, this.width - ScreenTheme.MARGIN - 6 - statusWidth,
+        graphics.drawString(this.font, status,
+                this.width - ScreenTheme.MARGIN - GEAR_BUTTON_WIDTH - 10 - statusWidth,
                 ScreenTheme.MARGIN + 7, ScreenTheme.MUTED_TEXT, false);
 
         graphics.drawString(this.font, "History", layout.contentX + ScreenTheme.PAD, layout.contentY + 5,
                 ScreenTheme.TEXT, false);
-        graphics.drawString(this.font, categoryTitle(selectedCategoryId), layout.contentX + ScreenTheme.PAD,
-                layout.actionsY + 5, ScreenTheme.TEXT, false);
+        if (!actionRailCollapsed) {
+            graphics.drawString(this.font, categoryTitle(selectedCategoryId), layout.actionsX + ScreenTheme.PAD,
+                    layout.actionsY + 5, ScreenTheme.TEXT, false);
+        }
         if (this.targetInput != null && this.targetInput.visible) {
-            graphics.drawString(this.font, "Target", layout.contentX + ScreenTheme.PAD, this.targetInput.getY() - 10,
+            graphics.drawString(this.font, "Target", layout.actionsX + ScreenTheme.PAD, this.targetInput.getY() - 10,
                     ScreenTheme.MUTED_TEXT, false);
         }
     }
@@ -477,8 +646,12 @@ public final class GemmaBuddyScreen extends Screen {
             return;
         }
 
-        int columns = width >= 240 ? 2 : 1;
-        int columnWidth = columns == 1 ? width : Math.max(ACTION_BUTTON_MIN_WIDTH, (width - ScreenTheme.GAP) / 2);
+        if (actionRailCollapsed) {
+            return;
+        }
+        int columns = width >= 210 ? 2 : 1;
+        int columnWidth = columns == 1 ? Math.min(148, width)
+                : Math.max(72, Math.min(116, (width - ScreenTheme.GAP) / 2));
         int rows = (visible.size() + columns - 1) / columns;
         int visibleRows = Math.max(1, height / (ACTION_BUTTON_HEIGHT + ScreenTheme.GAP));
         actionScrollOffset = Math.max(0, Math.min(actionScrollOffset, Math.max(0, rows - visibleRows)));
@@ -493,7 +666,7 @@ public final class GemmaBuddyScreen extends Screen {
                     && (!action.definition.longRunning() || !GemmaBuddy.knowledgeIndex().isBusy());
             action.button.setX(x + column * (columnWidth + ScreenTheme.GAP));
             action.button.setY(rowY);
-            action.button.setWidth(columns == 1 ? width : columnWidth);
+            action.button.setWidth(columnWidth);
         }
     }
 
@@ -536,7 +709,7 @@ public final class GemmaBuddyScreen extends Screen {
             return;
         }
 
-        GemmaBuddyClient.sendGemmaMessage(text);
+        GemmaBuddyClient.sendGemmaMessage(text, chatMode);
         this.mainInput.setValue("");
         focusMainInput();
     }
@@ -579,6 +752,21 @@ public final class GemmaBuddyScreen extends Screen {
         if (voiceButton != null) {
             voiceButton.setFocused(false);
         }
+        if (modeButton != null) {
+            modeButton.setFocused(false);
+        }
+        if (settingsButton != null) {
+            settingsButton.setFocused(false);
+        }
+        if (railToggleButton != null) {
+            railToggleButton.setFocused(false);
+        }
+        if (approveButton != null) {
+            approveButton.setFocused(false);
+        }
+        if (denyButton != null) {
+            denyButton.setFocused(false);
+        }
     }
 
     private EditBox focusedInput() {
@@ -612,6 +800,12 @@ public final class GemmaBuddyScreen extends Screen {
                     ? Component.literal("Experimental voice fills the input box for confirmation.")
                     : Component.literal("Voice control is disabled in config.json.");
         }
+        if (this.modeButton != null && this.modeButton.isMouseOver(mouseX, mouseY)) {
+            return Component.literal("ASK = knowledge/chat, DO = action routing, PLAN = structured planner.");
+        }
+        if (this.settingsButton != null && this.settingsButton.isMouseOver(mouseX, mouseY)) {
+            return Component.literal("Open GemmaBuddy settings.");
+        }
         return Component.empty();
     }
 
@@ -622,7 +816,12 @@ public final class GemmaBuddyScreen extends Screen {
             }
         }
         return sendButton != null && sendButton.visible && sendButton.isMouseOver(mouseX, mouseY)
-                || voiceButton != null && voiceButton.visible && voiceButton.isMouseOver(mouseX, mouseY);
+                || voiceButton != null && voiceButton.visible && voiceButton.isMouseOver(mouseX, mouseY)
+                || modeButton != null && modeButton.visible && modeButton.isMouseOver(mouseX, mouseY)
+                || settingsButton != null && settingsButton.visible && settingsButton.isMouseOver(mouseX, mouseY)
+                || railToggleButton != null && railToggleButton.visible && railToggleButton.isMouseOver(mouseX, mouseY)
+                || approveButton != null && approveButton.visible && approveButton.isMouseOver(mouseX, mouseY)
+                || denyButton != null && denyButton.visible && denyButton.isMouseOver(mouseX, mouseY);
     }
 
     private boolean categoryNeedsTargetInput(String categoryId) {
@@ -662,8 +861,8 @@ public final class GemmaBuddyScreen extends Screen {
 
     private boolean isOverActions(double mouseX, double mouseY) {
         return layout != null
-                && mouseX >= layout.contentX
-                && mouseX <= layout.contentX + layout.contentWidth
+                && mouseX >= layout.actionsX
+                && mouseX <= layout.actionsX + layout.actionsWidth
                 && mouseY >= layout.actionsY
                 && mouseY <= layout.actionsY + layout.actionsHeight;
     }
@@ -712,11 +911,15 @@ public final class GemmaBuddyScreen extends Screen {
             int contentY,
             int contentWidth,
             int historyHeight,
+            int actionsX,
+            int actionsWidth,
             int actionsY,
             int actionsHeight,
             int inputY,
+            int inputX,
             int inputWidth,
             int sendX,
-            int voiceX) {
+            int voiceX,
+            int modeX) {
     }
 }

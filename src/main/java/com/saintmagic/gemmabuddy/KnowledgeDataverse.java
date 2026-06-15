@@ -824,10 +824,13 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
                 || normalized.startsWith("recipe for ")) {
             return Intent.RECIPE;
         }
-        if (normalized.startsWith("what is ") && normalized.endsWith(" used for")) {
+        if (normalized.startsWith("what is ")
+                && (normalized.endsWith(" used for") || normalized.endsWith(" used to make"))) {
             return Intent.USAGE;
         }
-        if (normalized.startsWith("what can i do with ")
+        if (normalized.startsWith("uses for ")
+                || normalized.startsWith("what do i use ")
+                || normalized.startsWith("what can i do with ")
                 || normalized.startsWith("what can i craft with ")
                 || normalized.startsWith("what can i make with ")
                 || normalized.startsWith("how do i use ")
@@ -863,11 +866,14 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
         return switch (intent) {
             case RECIPE -> stripPrefix(normalized, "how do i craft ", "how do i make ", "recipe for ");
             case USAGE -> {
-                if (normalized.startsWith("what is ") && normalized.endsWith(" used for")) {
-                    yield normalized.substring("what is ".length(), normalized.length() - " used for".length()).trim();
+                if (normalized.startsWith("what is ")
+                        && (normalized.endsWith(" used for") || normalized.endsWith(" used to make"))) {
+                    String suffix = normalized.endsWith(" used to make") ? " used to make" : " used for";
+                    yield normalized.substring("what is ".length(), normalized.length() - suffix.length()).trim();
                 }
-                yield stripPrefix(normalized, "what can i do with ", "what can i craft with ",
-                        "what can i make with ", "how do i use ");
+                String target = stripPrefix(normalized, "uses for ", "what do i use ", "what can i do with ",
+                        "what can i craft with ", "what can i make with ", "how do i use ");
+                yield target.endsWith(" for") ? target.substring(0, target.length() - 4).trim() : target;
             }
             case MOD_ORIGIN -> {
                 if (normalized.startsWith("where is ") && normalized.endsWith(" from")) {

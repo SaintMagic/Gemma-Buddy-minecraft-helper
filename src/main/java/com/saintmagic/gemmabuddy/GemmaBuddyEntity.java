@@ -69,13 +69,13 @@ public class GemmaBuddyEntity extends PathfinderMob {
                 }
             }
             case RETURN_HOME -> {
-                if (moveToward(homePosition, 1.08D, 2.0D)) {
+                if (moveToward(homePosition, movementSpeedTo(homePosition), 2.0D)) {
                     buddyMode = BuddyMode.STAY;
                     completeMovementTask(owner, "Buddy reached home.");
                 }
             }
             case GUIDING_TO_TARGET -> {
-                if (moveToward(movementTarget, 1.02D, 2.0D)) {
+                if (moveToward(movementTarget, movementSpeedTo(movementTarget), 2.0D)) {
                     buddyMode = BuddyMode.STAY;
                     completeMovementTask(owner, "Buddy reached the tracked target.");
                 }
@@ -151,8 +151,21 @@ public class GemmaBuddyEntity extends PathfinderMob {
             getNavigation().stop();
             return true;
         }
-        getNavigation().moveTo(player, 1.08D);
+        double speed = distanceTo(player) >= GemmaBuddy.config().buddyRunDistanceThreshold()
+                ? GemmaBuddy.config().buddyRunSpeed()
+                : GemmaBuddy.config().buddyWalkSpeed();
+        getNavigation().moveTo(player, speed);
         return false;
+    }
+
+    private double movementSpeedTo(BlockPos target) {
+        if (target == null) {
+            return GemmaBuddy.config().buddyWalkSpeed();
+        }
+        double distance = Math.sqrt(distanceToSqr(target.getCenter()));
+        return distance >= GemmaBuddy.config().buddyRunDistanceThreshold()
+                ? GemmaBuddy.config().buddyRunSpeed()
+                : GemmaBuddy.config().buddyWalkSpeed();
     }
 
     private boolean moveToward(BlockPos target, double speed, double stopDistance) {

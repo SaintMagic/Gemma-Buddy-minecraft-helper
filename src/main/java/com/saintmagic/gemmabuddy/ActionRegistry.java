@@ -63,6 +63,11 @@ public final class ActionRegistry {
                 true, true, InputMode.MAIN_INPUT, "question", List.of("ask"), List.of("ask <message>"),
                 this::askAction));
 
+        register(action("clear_chat", BASIC, "Clear chat",
+                "Clear only GemmaBuddy UI chat history; memories, goals, and discoveries stay intact.",
+                false, false, InputMode.NONE, null, List.of("clear chat", "clear history"),
+                List.of("chat clear"), this::clearChatAction));
+
         register(action("study_mods", KNOWLEDGE, "Study installed mods",
                 "Scan the loaded mods and write local knowledge reports.",
                 true, false, InputMode.NONE, null, List.of("study mods"),
@@ -119,13 +124,14 @@ public final class ActionRegistry {
         register(action("recipe_lookup", KNOWLEDGE, "Recipe for target",
                 "Show the exact local recipe for a target when recipe data is available.",
                 false, true, InputMode.TARGET_INPUT, "item / block / output",
-                List.of("how do i craft", "how do i make", "recipe for", "can i craft"),
+                List.of("how do i craft", "how do i make", "recipe for", "can i craft", "can we craft",
+                        "can you craft", "craft"),
                 List.of("recipe <query>"), this::recipeLookupAction));
 
         register(action("usage_lookup", KNOWLEDGE, "Uses for target",
                 "Show what recipes or uses the target appears in.",
                 false, true, InputMode.TARGET_INPUT, "item / block / input",
-                List.of("uses for"),
+                List.of("uses for", "what is used for", "what is used to make", "what do i use"),
                 List.of("uses <query>"), this::usageLookupAction));
 
         register(action("mod_origin", KNOWLEDGE, "Which mod adds target",
@@ -164,7 +170,8 @@ public final class ActionRegistry {
 
         register(action("mark_home", BUDDY, "Mark home",
                 "Remember the player's current location as home.",
-                false, false, InputMode.NONE, null, List.of("set home", "mark home"), List.of("home set"),
+                false, false, InputMode.NONE, null, List.of("home set", "set home", "mark home"),
+                List.of("home set"),
                 this::markHomeAction));
 
         register(action("return_home", BUDDY, "Return home",
@@ -202,6 +209,40 @@ public final class ActionRegistry {
                 "Show recent local player notes.",
                 false, false, InputMode.NONE, null, List.of("notes"), List.of("notes"), this::notesAction));
 
+        register(action("goals", PLANNING, "Show goals",
+                "Open or list saved active and inactive goals.",
+                false, false, InputMode.NONE, null, List.of("goals"), List.of("goals"), this::goalsAction));
+
+        register(action("note_delete", PLANNING, "Delete note",
+                "Delete a saved note by its displayed id.",
+                false, true, InputMode.MAIN_INPUT, "note id", List.of("delete note"),
+                List.of("note delete <target>"), this::deleteNoteAction));
+
+        register(action("note_edit", PLANNING, "Edit note",
+                "Edit a saved note using: id new text.",
+                false, true, InputMode.MAIN_INPUT, "id text", List.of("edit note"),
+                List.of("note edit <target>"), this::editNoteAction));
+
+        register(action("goal_activate", PLANNING, "Activate goal",
+                "Activate a saved goal by id.",
+                false, true, InputMode.TARGET_INPUT, "goal id", List.of("activate goal"),
+                List.of("goal activate <target>"), this::activateGoalAction));
+
+        register(action("goal_deactivate", PLANNING, "Deactivate goal",
+                "Deactivate a saved goal by id.",
+                false, true, InputMode.TARGET_INPUT, "goal id", List.of("deactivate goal"),
+                List.of("goal deactivate <target>"), this::deactivateGoalAction));
+
+        register(action("goal_delete", PLANNING, "Delete goal",
+                "Delete a saved goal by id.",
+                false, true, InputMode.TARGET_INPUT, "goal id", List.of("delete goal"),
+                List.of("goal delete <target>"), this::deleteGoalAction));
+
+        register(action("goal_edit", PLANNING, "Edit goal",
+                "Edit a saved goal using: id new text.",
+                false, true, InputMode.MAIN_INPUT, "id text", List.of("edit goal"),
+                List.of("goal edit <target>"), this::editGoalAction));
+
         register(action("recent_plans", PLANNING, "Recent plans",
                 "Show the most recent locally persisted validated plans.",
                 false, false, InputMode.NONE, null, List.of("recent plans", "show plans"), List.of("plans"),
@@ -215,6 +256,17 @@ public final class ActionRegistry {
         register(action("scan", FIND, "Scan looked-at target",
                 "Remember the block or entity the player is looking at.",
                 false, false, InputMode.NONE, null, List.of("scan this", "scan"), List.of("scan"), this::scanAction));
+
+        register(action("container_contents", FIND, "Recent container contents",
+                "Show the most recently scanned container and its remembered read-only contents.",
+                false, false, InputMode.NONE, null, List.of("what was in this chest", "what was in this container"),
+                List.of("container recent"), this::containerContentsAction));
+
+        register(action("container_label", FIND, "Label recent container",
+                "Label the most recently scanned container without moving any items.",
+                false, true, InputMode.MAIN_INPUT, "label",
+                List.of("remember this chest as", "remember this container as"),
+                List.of("container label <target>"), this::containerLabelAction));
 
         register(action("track_stop", FIND, "Stop tracking",
                 "Clear the current tracked find target.",
@@ -331,7 +383,8 @@ public final class ActionRegistry {
 
         register(action("skill_shelter_plan", PLANNING, "Plan basic shelter",
                 "Plan-only starter shelter skill; it never places blocks.",
-                false, false, InputMode.NONE, null, List.of("plan basic shelter"), List.of(),
+                false, false, InputMode.NONE, null,
+                List.of("plan basic shelter", "skill shelter", "build basic shelter"), List.of(),
                 SafetyManager.SafetyLevel.WORLD_CHANGE, true, true, "Shelter",
                 context -> skillPlanAction(context, "build_basic_shelter")));
 
@@ -515,6 +568,12 @@ public final class ActionRegistry {
         return runPlanning(context, query, "ask");
     }
 
+    private ActionResult clearChatAction(ActionContext context) {
+        GemmaBuddyClientBridge.clearHistory();
+        GemmaBuddy.sendLine(context.player(), "GemmaBuddy chat history cleared.");
+        return ActionResult.success("Chat history cleared.");
+    }
+
     private ActionResult planAction(ActionContext context) {
         String query = firstNonBlank(context.argument(), context.normalizedInput());
         return runStructuredPlanning(context, query);
@@ -555,7 +614,7 @@ public final class ActionRegistry {
             return ActionResult.failure("Missing query.");
         }
 
-        String deterministicQuery = context.argument().isBlank() ? context.normalizedInput() : query;
+        String deterministicQuery = context.normalizedInput().isBlank() ? query : context.normalizedInput();
         ActionResult deterministic = tryDeterministicKnowledgeAnswer(context, deterministicQuery);
         if (deterministic != null) {
             return deterministic;
@@ -598,6 +657,10 @@ public final class ActionRegistry {
             return ActionResult.failure("Missing recipe target.");
         }
         String routed = ensureRecipeIntent(query);
+        ActionResult craftability = tryCraftabilityAnswer(context, "can i craft " + cleanCraftTarget(query));
+        if (craftability != null && isCraftabilityQuestion(context.rawInput())) {
+            return craftability;
+        }
         ActionResult deterministic = tryDeterministicKnowledgeAnswer(context, routed);
         if (deterministic != null) {
             return deterministic;
@@ -788,9 +851,98 @@ public final class ActionRegistry {
             GemmaBuddy.sendLine(context.player(), "No saved notes.");
         } else {
             GemmaBuddy.sendLine(context.player(), "Recent notes:");
-            notes.stream().skip(Math.max(0, notes.size() - 8)).forEach(note -> GemmaBuddy.sendLine(context.player(), note));
+            int start = Math.max(0, notes.size() - 8);
+            for (int index = start; index < notes.size(); index++) {
+                GemmaBuddy.sendLine(context.player(), (index + 1) + ". " + notes.get(index));
+            }
         }
+        GemmaBuddyClientBridge.openMemory("notes");
         return ActionResult.success("Notes shown.");
+    }
+
+    private ActionResult goalsAction(ActionContext context) {
+        List<MemoryManager.SavedGoal> goals = context.memory().goals();
+        if (goals.isEmpty()) {
+            GemmaBuddy.sendLine(context.player(), "No saved goals.");
+        } else {
+            GemmaBuddy.sendLine(context.player(), "Saved goals:");
+            goals.forEach(goal -> GemmaBuddy.sendLine(context.player(),
+                    goal.id() + ". [" + (goal.active() ? "active" : "inactive") + "] " + goal.title()));
+        }
+        GemmaBuddyClientBridge.openMemory("goals");
+        return ActionResult.success("Goals shown.");
+    }
+
+    private ActionResult deleteNoteAction(ActionContext context) {
+        Integer id = parseLeadingId(context.argument());
+        if (id == null || !context.memory().deleteNote(id)) {
+            GemmaBuddy.sendError(context.player(), "Note id was not found. Use gemma notes to list ids.");
+            return ActionResult.failure("Note id not found.");
+        }
+        GemmaBuddy.sendLine(context.player(), "Deleted note " + id + ".");
+        return ActionResult.success("Note deleted.");
+    }
+
+    private ActionResult editNoteAction(ActionContext context) {
+        IdAndText parsed = parseIdAndText(context.argument());
+        if (parsed == null || !context.memory().editNote(parsed.id(), parsed.text())) {
+            GemmaBuddy.sendError(context.player(), "Use: gemma edit note <id> <new text>");
+            return ActionResult.failure("Note edit failed.");
+        }
+        GemmaBuddy.sendLine(context.player(), "Updated note " + parsed.id() + ".");
+        return ActionResult.success("Note updated.");
+    }
+
+    private ActionResult activateGoalAction(ActionContext context) {
+        Integer id = parseLeadingId(context.argument());
+        if (id == null || !context.memory().setGoalActive(id, true)) {
+            GemmaBuddy.sendError(context.player(), "Goal id was not found. Use gemma goals to list ids.");
+            return ActionResult.failure("Goal id not found.");
+        }
+        MemoryManager.SavedGoal goal = context.memory().goals().stream()
+                .filter(value -> value.id() == id).findFirst().orElse(null);
+        if (goal != null) {
+            context.goals().setGoal(goal.title(), List.of(), false);
+        }
+        GemmaBuddy.sendLine(context.player(), "Activated goal " + id + ".");
+        return ActionResult.success("Goal activated.");
+    }
+
+    private ActionResult deactivateGoalAction(ActionContext context) {
+        Integer id = parseLeadingId(context.argument());
+        if (id == null || !context.memory().setGoalActive(id, false)) {
+            GemmaBuddy.sendError(context.player(), "Goal id was not found. Use gemma goals to list ids.");
+            return ActionResult.failure("Goal id not found.");
+        }
+        context.goals().clear();
+        GemmaBuddy.sendLine(context.player(), "Deactivated goal " + id + ".");
+        return ActionResult.success("Goal deactivated.");
+    }
+
+    private ActionResult deleteGoalAction(ActionContext context) {
+        Integer id = parseLeadingId(context.argument());
+        if (id == null || !context.memory().deleteGoal(id)) {
+            GemmaBuddy.sendError(context.player(), "Goal id was not found. Use gemma goals to list ids.");
+            return ActionResult.failure("Goal id not found.");
+        }
+        if (context.memory().currentGoal().isBlank()) {
+            context.goals().clear();
+        }
+        GemmaBuddy.sendLine(context.player(), "Deleted goal " + id + ".");
+        return ActionResult.success("Goal deleted.");
+    }
+
+    private ActionResult editGoalAction(ActionContext context) {
+        IdAndText parsed = parseIdAndText(context.argument());
+        if (parsed == null || !context.memory().editGoal(parsed.id(), parsed.text())) {
+            GemmaBuddy.sendError(context.player(), "Use: gemma edit goal <id> <new text>");
+            return ActionResult.failure("Goal edit failed.");
+        }
+        if (!context.memory().currentGoal().isBlank()) {
+            context.goals().setGoal(context.memory().currentGoal(), List.of(), false);
+        }
+        GemmaBuddy.sendLine(context.player(), "Updated goal " + parsed.id() + ".");
+        return ActionResult.success("Goal updated.");
     }
 
     private ActionResult recentPlansAction(ActionContext context) {
@@ -812,11 +964,17 @@ public final class ActionRegistry {
         }
         FindService.FindResult result = context.find().find(context.player(), query, GemmaBuddy.config().findRadius());
         if (!result.resolvedId().isBlank()) {
-            context.memory().setTrackedTarget(result.resolvedId(),
-                    context.player().level().dimension().location().toString(), result.position(), result.source());
-            GemmaBuddy.sendLine(context.player(), result.message() + " at " + result.position().toShortString()
-                    + " (" + result.distance() + "m, source=" + result.source() + ").");
-            return ActionResult.success("Find target located.");
+            if (result.trackable()) {
+                context.memory().setTrackedTarget(result.resolvedId(),
+                        context.player().level().dimension().location().toString(), result.position(), result.source());
+                GemmaBuddy.sendLine(context.player(), formatResultMessage(result.resolvedId(), result.message())
+                        + " at " + result.position().toShortString()
+                        + " (" + result.distance() + "m, source=" + result.source() + ").");
+                return ActionResult.success("Find target located.");
+            }
+            context.memory().clearTrackedTarget();
+            GemmaBuddy.sendLine(context.player(), formatResultMessage(result.resolvedId(), result.message()));
+            return ActionResult.success("Inventory side note shown; no world target tracked.");
         }
         GemmaBuddy.sendLine(context.player(), result.message());
         return ActionResult.failure("Target not found in fair search scope.");
@@ -824,23 +982,30 @@ public final class ActionRegistry {
 
     private ActionResult scanAction(ActionContext context) {
         if (context.player().containerMenu != context.player().inventoryMenu) {
-            int remembered = 0;
-            java.util.Set<String> seen = new java.util.LinkedHashSet<>();
-            for (net.minecraft.world.inventory.Slot slot : context.player().containerMenu.slots) {
+            Map<String, Integer> contents = new LinkedHashMap<>();
+            int containerSlots = Math.max(0, context.player().containerMenu.slots.size() - 36);
+            for (int index = 0; index < containerSlots; index++) {
+                net.minecraft.world.inventory.Slot slot = context.player().containerMenu.slots.get(index);
                 net.minecraft.world.item.ItemStack stack = slot.getItem();
                 if (stack.isEmpty()) {
                     continue;
                 }
                 net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(stack.getItem());
-                if (id != null && seen.add(id.toString())) {
-                    context.memory().rememberDiscovery(id.toString(), "opened_container",
-                            context.player().level().dimension().location().toString(),
-                            context.player().blockPosition());
-                    remembered++;
+                if (id != null) {
+                    contents.merge(id.toString(), stack.getCount(), Integer::sum);
                 }
             }
-            GemmaBuddy.sendLine(context.player(), "Remembered " + remembered
+            ContextResolver.ResolvedContext lookedAt = ContextResolver.resolveLookedAt(context.player());
+            net.minecraft.core.BlockPos position = lookedAt != null && "block".equals(lookedAt.type())
+                    ? lookedAt.position()
+                    : context.player().blockPosition();
+            String type = lookedAt != null && "block".equals(lookedAt.type())
+                    ? lookedAt.registryId()
+                    : context.player().containerMenu.getClass().getSimpleName();
+            context.memory().rememberContainer(context.player().level().dimension().location().toString(), position,
+                    type, contents);
+            GemmaBuddy.sendLine(context.player(), "Remembered " + contents.size()
                     + " distinct item types from the currently open container.");
             return ActionResult.success("Open container scanned.");
         }
@@ -856,9 +1021,36 @@ public final class ActionRegistry {
                 resolved.position());
         context.memory().setTrackedTarget(resolved.registryId(), dimension, resolved.position(),
                 "manual_" + resolved.type());
-        GemmaBuddy.sendLine(context.player(), "Scanned context target: " + resolved.registryId() + " at "
+        GemmaBuddy.sendLine(context.player(), "Scanned context target: " + formatRegistryId(resolved.registryId(), true)
+                + " at "
                 + resolved.position().toShortString() + ".");
         return ActionResult.success("Context target scanned.");
+    }
+
+    private ActionResult containerContentsAction(ActionContext context) {
+        MemoryManager.ContainerMemory container = context.memory().recentContainer();
+        if (container == null) {
+            GemmaBuddy.sendError(context.player(), "I have no scanned container memory yet. Open a container and use gemma scan.");
+            return ActionResult.failure("No container memory.");
+        }
+        String label = container.label().isBlank() ? container.containerType() : container.label();
+        String contents = container.contents().entrySet().stream()
+                .limit(12)
+                .map(entry -> formatRegistryId(entry.getKey(), false) + " x" + entry.getValue())
+                .collect(java.util.stream.Collectors.joining(", "));
+        GemmaBuddy.sendLine(context.player(), label + " at " + container.position().toShortString() + " contained: "
+                + (contents.isBlank() ? "nothing indexed" : contents) + ".");
+        return ActionResult.success("Container contents shown.");
+    }
+
+    private ActionResult containerLabelAction(ActionContext context) {
+        String label = normalize(context.argument());
+        if (label.isBlank() || !context.memory().labelRecentContainer(label)) {
+            GemmaBuddy.sendError(context.player(), "Scan or open a container first, then give it a label.");
+            return ActionResult.failure("No recent container to label.");
+        }
+        GemmaBuddy.sendLine(context.player(), "Labeled the recent container \"" + label + "\".");
+        return ActionResult.success("Container labeled.");
     }
 
     private ActionResult trackStopAction(ActionContext context) {
@@ -937,13 +1129,19 @@ public final class ActionRegistry {
             GemmaBuddy.sendLine(context.player(), "No target is currently tracked.");
             return ActionResult.failure("No tracked target.");
         }
+        if (!isTrackableSource(target.source()) || target.position().equals(net.minecraft.core.BlockPos.ZERO)) {
+            GemmaBuddy.sendError(context.player(),
+                    "That result has no safe world location. Find or scan a block, entity, container, or discovery first.");
+            return ActionResult.failure("Tracked target is not a world target.");
+        }
         if (!target.dimension().equals(context.player().level().dimension().location().toString())) {
-            GemmaBuddy.sendLine(context.player(), "Tracking " + target.registryId() + " in " + target.dimension()
+            GemmaBuddy.sendLine(context.player(), "Tracking " + formatRegistryId(target.registryId(), true)
+                    + " in " + target.dimension()
                     + " at " + target.position().toShortString() + ".");
             return ActionResult.success("Tracked target is in another dimension.");
         }
         int distance = (int) Math.round(Math.sqrt(target.position().distSqr(context.player().blockPosition())));
-        GemmaBuddy.sendLine(context.player(), "Tracking " + target.registryId() + " at "
+        GemmaBuddy.sendLine(context.player(), "Tracking " + formatRegistryId(target.registryId(), true) + " at "
                 + target.position().toShortString() + " (" + distance + "m, source=" + target.source() + ").");
         return ActionResult.success("Tracking status shown.");
     }
@@ -953,6 +1151,11 @@ public final class ActionRegistry {
         if (target == null) {
             GemmaBuddy.sendError(context.player(), "Find or scan a target first.");
             return ActionResult.failure("No tracked target.");
+        }
+        if (!isTrackableSource(target.source()) || target.position().equals(net.minecraft.core.BlockPos.ZERO)) {
+            GemmaBuddy.sendError(context.player(),
+                    "You already have that inventory result, but I do not have a world location to guide to.");
+            return ActionResult.failure("Inventory-only target cannot be guided to.");
         }
         String dimension = context.player().level().dimension().location().toString();
         if (!dimension.equals(target.dimension())) {
@@ -982,10 +1185,13 @@ public final class ActionRegistry {
                     QUICK_MAX_TOKENS);
             String reply = cleanReply(response.content());
             if (reply.isBlank() && !normalize(response.reasoningContent()).isBlank()) {
+                GemmaBuddy.sendLine(context.player(),
+                        "LM Studio returned hidden reasoning despite thinkingMode="
+                                + GemmaBuddy.config().thinkingMode().configValue() + ". Reasoning was suppressed.");
                 reply = requestFinalAnswerFromReasoning(context, response.reasoningContent());
             }
             if (reply.isBlank()) {
-                reply = "LM Studio replied with nothing.";
+                reply = "LM Studio replied with no visible answer. Using fallback.";
             }
             GemmaBuddy.sendLine(context.player(), reply);
             return ActionResult.success(reply);
@@ -1109,6 +1315,61 @@ public final class ActionRegistry {
 
     private ActionResult selfCheckAction(ActionContext context) {
         List<String> failures = new ArrayList<>();
+        if (findById("clear_chat").isEmpty()) {
+            failures.add("clear chat action");
+        }
+        GemmaBuddy.config().save();
+        if (GemmaBuddy.config().configPath().getParent() == null
+                || GemmaBuddy.config().lmStudioEndpoint().isBlank()
+                || java.nio.file.Files.notExists(GemmaBuddy.config().configPath())) {
+            failures.add("settings config load");
+        }
+        if (GemmaBuddyChatMode.values().length != 3) {
+            failures.add("ASK/DO/PLAN modes");
+        }
+        if (!resolvesTo("can i craft enchanting table now", "recipe_lookup")) {
+            failures.add("natural craftability parser");
+        }
+        if (resolveChatAction("what is obsidian used for").isEmpty()) {
+            failures.add("natural usage parser");
+        }
+        if (context.player().getServer() != null
+                && context.repository().findUsagesForInput(context.player().getServer(), "minecraft:obsidian")
+                        .isEmpty()) {
+            failures.add("obsidian usage lookup");
+        }
+        FindService.FindResult inventoryResult = new FindService.FindResult("test", "minecraft:stone", "inventory",
+                net.minecraft.core.BlockPos.ZERO, 0, 1.0D, false, "inventory");
+        if (inventoryResult.trackable() || isTrackableSource(inventoryResult.source())) {
+            failures.add("inventory result trackability");
+        }
+        if (isTrackableSource("inventory") || isTrackableSource("legacy")) {
+            failures.add("guide inventory/stale rejection");
+        }
+        if (!resolvesTo("remember this chest as starter chest", "container_label")) {
+            failures.add("container label parser");
+        }
+        if (findById("approve").isEmpty() || findById("deny").isEmpty()) {
+            failures.add("console approval actions");
+        }
+        if (findById("notes").isEmpty() || findById("goals").isEmpty()
+                || findById("note_edit").isEmpty() || findById("goal_activate").isEmpty()) {
+            failures.add("notes/goals actions");
+        }
+        if (LmStudioClient.ResponseStatus.values().length < 8) {
+            failures.add("LM Studio response status distinctions");
+        }
+        if (!context.llm().thinkingOffCompatibilityFieldsEnabled()) {
+            failures.add("thinking-off compatibility fields");
+        }
+        if (!resolvesTo("skill shelter", "skill_shelter_plan")
+                || !resolvesTo("build basic shelter", "skill_shelter_plan")) {
+            failures.add("shelter skill aliases");
+        }
+        if (!resolvesTo("home set", "mark_home") || !resolvesTo("set home", "mark_home")
+                || !resolvesTo("mark home", "mark_home")) {
+            failures.add("home aliases");
+        }
         if (actionsById.values().stream().anyMatch(action -> action.handler() == null)) {
             failures.add("visible action without handler");
         }
@@ -1324,6 +1585,9 @@ public final class ActionRegistry {
                 try {
                     proposal = context.planner().parseProposal(json);
                 } catch (RuntimeException firstFailure) {
+                    context.llm().markInvalidPlannerJson();
+                    GemmaBuddy.sendLine(context.player(),
+                            "LM Studio replied but did not return a valid plan. Retrying once.");
                     LmStudioResponse retry = context.llm().completeJson(
                             system + "\nYour previous output was invalid. Return one valid object matching output_schema.",
                             context.planner().promptFor(packet));
@@ -1332,8 +1596,12 @@ public final class ActionRegistry {
                 return context.planner().validate(packet, proposal);
             } catch (Exception ex) {
                 LOGGER.warn("Structured planner unavailable for '{}'; using safe local fallback", request, ex);
+                boolean disconnected = context.llm().responseStatus() == LmStudioClient.ResponseStatus.DISCONNECTED;
+                context.llm().markFallbackUsed();
                 PlannerService.PlannerProposal fallback = new PlannerService.PlannerProposal(
-                        "LM Studio was unavailable, so this is a safe local fallback plan.",
+                        disconnected
+                                ? "LM Studio was unavailable, so this is a safe local fallback plan."
+                                : "LM Studio replied without a valid plan, so this is a safe local fallback plan.",
                         List.of(
                                 new PlannerService.ProposedStep("inspect_state_1", "Check current needs first.", ""),
                                 new PlannerService.ProposedStep("scan_nearby_1", "Use only the loaded nearby area.",
@@ -1374,6 +1642,12 @@ public final class ActionRegistry {
             return craftability;
         }
 
+        if (isAmbiguousCopperUsage(query)) {
+            GemmaBuddy.sendLine(context.player(),
+                    "Do you mean Copper Ingot, Copper Block, Cut Copper, or Chiseled Copper?");
+            return ActionResult.success("Asked for copper clarification.");
+        }
+
         String contextTarget = ContextResolver.resolveTarget(context.player(), context.knowledge(), query);
         String effectiveQuery = contextTarget.isBlank() ? query : contextTarget;
         Optional<KnowledgeDataverse.DeterministicAnswer> answer = context.repository().answerQuestion(server,
@@ -1394,10 +1668,10 @@ public final class ActionRegistry {
 
     private ActionResult tryCraftabilityAnswer(ActionContext context, String query) {
         String normalized = canonicalize(query);
-        if (!normalized.startsWith("can i craft ")) {
+        if (!isCraftabilityQuestion(normalized)) {
             return null;
         }
-        String target = normalized.substring("can i craft ".length()).replaceAll("\\s+now$", "").trim();
+        String target = cleanCraftTarget(normalized);
         if (target.isBlank() || context.player().getServer() == null) {
             return null;
         }
@@ -1431,11 +1705,12 @@ public final class ActionRegistry {
             }
         }
         if (missing.isEmpty()) {
-            GemmaBuddy.sendLine(context.player(), "Yes. You have the exact indexed ingredients for "
+            GemmaBuddy.sendLine(context.player(), "Yes, you can craft "
                     + recipe.get().outputName() + ".");
             return ActionResult.success("Craftable from current inventory.");
         }
-        GemmaBuddy.sendLine(context.player(), "No. To craft " + recipe.get().outputName() + ", you are missing "
+        GemmaBuddy.sendLine(context.player(), "No, you cannot craft " + recipe.get().outputName()
+                + " yet. You are missing "
                 + String.join(", ", missing) + ".");
         return ActionResult.success("Missing ingredients reported.");
     }
@@ -1459,10 +1734,13 @@ public final class ActionRegistry {
         LmStudioResponse response = context.llm().complete(systemPrompt, userPrompt.toString(), PLANNING_MAX_TOKENS);
         String reply = cleanReply(response.content());
         if (reply.isBlank() && !normalize(response.reasoningContent()).isBlank()) {
+            LOGGER.warn("LM Studio returned hidden reasoning despite thinkingMode={}; reasoning was suppressed",
+                    GemmaBuddy.config().thinkingMode().configValue());
             reply = requestFinalAnswerFromReasoning(context, response.reasoningContent());
         }
         if (reply.isBlank()) {
-            return "I thought too long and forgot to answer. Ask me again shorter.";
+            context.llm().markFallbackUsed();
+            return "LM Studio replied with no visible answer. Using fallback; ask me again shorter.";
         }
         return reply;
     }
@@ -1479,6 +1757,7 @@ public final class ActionRegistry {
 
         LmStudioResponse response = context.llm().complete(summarizationSystemPrompt, summarizationUserPrompt,
                 QUICK_MAX_TOKENS);
+        context.llm().markReasoningSuppressed();
         return cleanReply(response.content());
     }
 
@@ -1579,6 +1858,89 @@ public final class ActionRegistry {
         return normalized.replaceAll("[\\p{Punct}]+$", "");
     }
 
+    private boolean isCraftabilityQuestion(String query) {
+        String value = canonicalize(query);
+        return value.startsWith("can i craft ")
+                || value.startsWith("can we craft ")
+                || value.startsWith("can you craft ")
+                || value.startsWith("craft ");
+    }
+
+    private boolean resolvesTo(String input, String actionId) {
+        return resolveChatAction(input)
+                .map(value -> value.definition().id().equals(actionId))
+                .orElse(false);
+    }
+
+    private String cleanCraftTarget(String query) {
+        String value = canonicalize(query);
+        value = value.replaceFirst("^(?:can\\s+i\\s+craft|can\\s+we\\s+craft|can\\s+you\\s+craft|craft)\\s+", "");
+        value = value.replaceAll("\\b(?:now|yet|please)\\b", " ");
+        return normalize(value);
+    }
+
+    private boolean isAmbiguousCopperUsage(String query) {
+        String value = canonicalize(query);
+        if (!(value.contains("used for") || value.contains("make with") || value.contains("use "))) {
+            return false;
+        }
+        String stripped = value.replaceAll(
+                "^(?:what is|what can i make with|what do i use|uses for)\\s+", "")
+                .replaceAll("\\s+(?:used for|used to make|for)$", "")
+                .trim();
+        return stripped.equals("copper");
+    }
+
+    private Integer parseLeadingId(String input) {
+        String value = normalize(input);
+        if (value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.split(" ", 2)[0]);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private IdAndText parseIdAndText(String input) {
+        String value = normalize(input);
+        int split = value.indexOf(' ');
+        if (split <= 0 || split == value.length() - 1) {
+            return null;
+        }
+        Integer id = parseLeadingId(value);
+        return id == null ? null : new IdAndText(id, value.substring(split + 1).trim());
+    }
+
+    private boolean isTrackableSource(String source) {
+        return List.of("nearby_drop", "nearby_entity", "nearby_loaded_block", "remembered_container",
+                "world_memory", "manual_block", "manual_entity").contains(normalize(source));
+    }
+
+    private String formatResultMessage(String registryId, String original) {
+        String formatted = formatRegistryId(registryId, true);
+        String raw = original == null ? "" : original;
+        return raw.replace(registryId, formatted);
+    }
+
+    private String formatRegistryId(String registryId, boolean debugContext) {
+        String value = normalize(registryId);
+        String path = value.contains(":") ? value.substring(value.indexOf(':') + 1) : value;
+        String natural = java.util.Arrays.stream(path.split("_"))
+                .filter(part -> !part.isBlank())
+                .map(part -> Character.toUpperCase(part.charAt(0)) + part.substring(1))
+                .collect(java.util.stream.Collectors.joining(" "));
+        GemmaBuddyConfig.OutputFormat format = debugContext
+                ? GemmaBuddy.config().outputFormat()
+                : GemmaBuddyConfig.OutputFormat.NATURAL;
+        return switch (format) {
+            case NATURAL -> natural;
+            case REGISTRY -> value;
+            case BOTH -> natural + " (" + value + ")";
+        };
+    }
+
     public interface ActionHandler {
         ActionResult execute(ActionContext context) throws Exception;
     }
@@ -1613,5 +1975,8 @@ public final class ActionRegistry {
     }
 
     public record ResolvedAction(ActionDefinition definition, String argument, String matchedAlias) {
+    }
+
+    private record IdAndText(int id, String text) {
     }
 }

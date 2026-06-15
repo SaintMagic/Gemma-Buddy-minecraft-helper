@@ -17,13 +17,14 @@ import net.minecraft.network.chat.Component;
  */
 public final class GemmaBuddyMiniConsoleScreen extends Screen {
     private static final int WIDTH = 238;
-    private static final int HEIGHT = 228;
+    private static final int HEIGHT = 276;
     private static final int PAD = 8;
     private EditBox input;
     private int left;
     private int top;
     private int panelHeight;
     private int actionStartY;
+    private GemmaBuddyChatMode chatMode = GemmaBuddyChatMode.ASK;
 
     public GemmaBuddyMiniConsoleScreen() {
         super(Component.literal("GemmaBuddy Console"));
@@ -37,7 +38,7 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         top = Math.max(6, (height - panelHeight) / 2);
         int innerWidth = Math.min(WIDTH, width - 12);
         int buttonWidth = (innerWidth - PAD * 3) / 2;
-        actionStartY = top + panelHeight - 130;
+        actionStartY = top + panelHeight - 168;
         int y = actionStartY;
 
         addActionButton("Follow", "follow", "", left + PAD, y, buttonWidth);
@@ -52,13 +53,26 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         y += 20;
         addActionButton("Track", "track_status", "", left + PAD, y, buttonWidth);
         addActionButton("Guide", "guide_target", "", left + PAD * 2 + buttonWidth, y, buttonWidth);
+        y += 20;
+        addActionButton("Approve", "approve", "", left + PAD, y, buttonWidth);
+        addActionButton("Deny", "deny", "", left + PAD * 2 + buttonWidth, y, buttonWidth);
+        y += 20;
+        addActionButton("Clear chat", "clear_chat", "", left + PAD, y, buttonWidth);
+        addRenderableWidget(Button.builder(Component.literal("Settings"),
+                button -> GemmaBuddyClient.openSettingsScreen(this))
+                .bounds(left + PAD * 2 + buttonWidth, y, buttonWidth, 18).build());
 
-        input = new EditBox(font, left + PAD, top + panelHeight - 48, innerWidth - PAD * 2 - 52, 18,
+        input = new EditBox(font, left + PAD + 44, top + panelHeight - 48, innerWidth - PAD * 2 - 96, 18,
                 Component.empty());
         input.setHint(Component.literal("Ask or find..."));
         input.setMaxLength(256);
         addRenderableWidget(input);
 
+        addRenderableWidget(Button.builder(Component.literal(chatMode.name()), button -> {
+            chatMode = chatMode.next();
+            button.setMessage(Component.literal(chatMode.name()));
+            clearButtonFocus();
+        }).bounds(left + PAD, top + panelHeight - 48, 40, 18).build());
         addRenderableWidget(Button.builder(Component.literal("Send"), button -> submit())
                 .bounds(left + innerWidth - PAD - 48, top + panelHeight - 48, 48, 18).build());
         addRenderableWidget(Button.builder(Component.literal("Open Full UI"), button -> GemmaBuddyClient.openScreen())
@@ -91,7 +105,7 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         if (text.isBlank()) {
             return;
         }
-        GemmaBuddyClient.sendGemmaMessage(text);
+        GemmaBuddyClient.sendGemmaMessage(text, chatMode);
         input.setValue("");
         clearButtonFocus();
     }
@@ -152,18 +166,26 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         graphics.drawString(font, compactStatus(innerWidth - PAD * 2), left + PAD, top + 23,
                 ScreenTheme.MUTED_TEXT, false);
 
+        super.render(graphics, mouseX, mouseY, partialTick);
+
         List<ChatEntry> history = GemmaBuddyScreen.historySnapshot();
-        int availableHistoryHeight = Math.max(0, actionStartY - (top + 39) - 3);
+        int historyTop = pendingApproval() == null ? top + 39 : top + 47;
+        int availableHistoryHeight = Math.max(0, actionStartY - historyTop - 3);
         int historyRows = Math.max(0, availableHistoryHeight / (font.lineHeight + 2));
         int start = Math.max(0, history.size() - Math.min(4, historyRows));
-        int y = top + 39;
+        int y = historyTop;
         for (int i = start; i < history.size(); i++) {
             ChatEntry entry = history.get(i);
             String line = entry.role().label() + ": " + entry.message();
             graphics.drawString(font, fit(line, innerWidth - PAD * 2), left + PAD, y, entry.role().color(), false);
             y += font.lineHeight + 2;
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
+        SafetyManager.PendingApprovalView pending = pendingApproval();
+        if (pending != null) {
+            graphics.drawString(font, fit("Pending: " + pending.actionId() + " | "
+                    + pending.safetyLevel().name().toLowerCase() + " | " + pending.secondsRemaining() + "s",
+                    innerWidth - PAD * 2), left + PAD, top + 33, ScreenTheme.GOLD, false);
+        }
     }
 
     private String compactStatus(int maxWidth) {
@@ -171,7 +193,17 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         String target = GemmaBuddy.memoryManager().trackedTarget() == null
                 ? "none"
                 : GemmaBuddy.memoryManager().trackedTarget().registryId();
-        return fit(GemmaBuddyClient.buddyStatusLine() + " | Goal: " + goal + " | Track: " + target, maxWidth);
+        Minecraft minecraft = Minecraft.getInstance();
+        String permission = minecraft.player == null ? "offline"
+                : GemmaBuddy.safetyManager().permissionLevel(minecraft.player.getUUID());
+        return fit(GemmaBuddyClient.buddyStatusLine() + " | Perm: " + permission + " | Goal: " + goal
+                + " | Track: " + target, maxWidth);
+    }
+
+    private SafetyManager.PendingApprovalView pendingApproval() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.player == null ? null
+                : GemmaBuddy.safetyManager().pendingApproval(minecraft.player.getUUID());
     }
 
     private String fit(String text, int maxWidth) {

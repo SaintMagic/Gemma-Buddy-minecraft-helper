@@ -36,15 +36,6 @@ public final class FindService {
         }
         String targetId = resolved.get().registryId();
 
-        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
-            ItemStack stack = player.getInventory().getItem(slot);
-            ResourceLocation id = stack.isEmpty() ? null : BuiltInRegistries.ITEM.getKey(stack.getItem());
-            if (id != null && targetId.equals(id.toString())) {
-                return new FindResult(query, targetId, "inventory", player.blockPosition(), 0, 1.0D, true,
-                        "You have " + stack.getCount() + " in inventory.");
-            }
-        }
-
         AABB box = player.getBoundingBox().inflate(radius);
         for (ItemEntity itemEntity : player.level().getEntitiesOfClass(ItemEntity.class, box)) {
             ResourceLocation id = BuiltInRegistries.ITEM.getKey(itemEntity.getItem().getItem());
@@ -89,6 +80,19 @@ public final class FindService {
             return nearest;
         }
 
+        List<MemoryManager.ContainerMemory> containers = memory.containersContaining(targetId,
+                player.level().dimension().location().toString()).stream()
+                .sorted(Comparator.comparingDouble(value -> value.position().distSqr(player.blockPosition())))
+                .toList();
+        if (!containers.isEmpty()) {
+            MemoryManager.ContainerMemory container = containers.get(0);
+            int distance = (int) Math.round(Math.sqrt(container.position().distSqr(player.blockPosition())));
+            String label = container.label().isBlank() ? container.containerType() : container.label();
+            return new FindResult(query, targetId, "remembered_container", container.position(), distance, 0.78D,
+                    true, "Remembered " + targetId + " x" + container.contents().getOrDefault(targetId, 0)
+                            + " in " + label);
+        }
+
         List<MemoryManager.Discovery> known = memory.discoveriesFor(targetId).stream()
                 .filter(value -> value.dimension().equals(player.level().dimension().location().toString()))
                 .sorted(Comparator.comparingDouble(value -> value.position().distSqr(player.blockPosition())))
@@ -98,6 +102,20 @@ public final class FindService {
             int distance = (int) Math.round(Math.sqrt(discovery.position().distSqr(player.blockPosition())));
             return new FindResult(query, targetId, "world_memory", discovery.position(), distance, 0.65D, true,
                     "Last seen " + discovery.lastSeen());
+        }
+
+        int inventoryCount = 0;
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            ResourceLocation id = stack.isEmpty() ? null : BuiltInRegistries.ITEM.getKey(stack.getItem());
+            if (id != null && targetId.equals(id.toString())) {
+                inventoryCount += stack.getCount();
+            }
+        }
+        if (inventoryCount > 0) {
+            return new FindResult(query, targetId, "inventory", BlockPos.ZERO, 0, 1.0D, false,
+                    "You already have " + inventoryCount
+                            + " in inventory. I do not have a world location to guide to.");
         }
 
         return FindResult.missing(targetId,

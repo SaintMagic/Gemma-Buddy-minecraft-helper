@@ -2,6 +2,7 @@ package com.saintmagic.gemmabuddy;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import org.slf4j.Logger;
 
@@ -35,7 +36,9 @@ public final class GemmaBuddyClient {
 
     public GemmaBuddyClient(IEventBus modEventBus, ModContainer modContainer) {
         GemmaBuddyClientBridge.install(GemmaBuddyClient::openMiniConsole,
-                () -> GemmaBuddyClient.sendGemmaAction("scan", ""));
+                () -> GemmaBuddyClient.sendGemmaAction("scan", ""),
+                GemmaBuddyScreen::clearHistory,
+                GemmaBuddyClient::openMemoryScreen);
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::registerLayerDefinitions);
         modEventBus.addListener(this::registerRenderers);
@@ -86,6 +89,21 @@ public final class GemmaBuddyClient {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null) {
             minecraft.setScreen(new GemmaBuddyMiniConsoleScreen());
+        }
+    }
+
+    public static void openSettingsScreen(Screen previous) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new GemmaBuddySettingsScreen(previous));
+        }
+    }
+
+    public static void openMemoryScreen(String tab) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new GemmaBuddyMemoryScreen(
+                    minecraft.screen instanceof GemmaBuddyMemoryScreen ? null : minecraft.screen, tab));
         }
     }
 
@@ -176,6 +194,18 @@ public final class GemmaBuddyClient {
         connection.sendChat(toSend);
     }
 
+    public static void sendGemmaMessage(String message, GemmaBuddyChatMode mode) {
+        String cleaned = message == null ? "" : message.trim();
+        if (cleaned.isBlank()) {
+            return;
+        }
+        switch (mode == null ? GemmaBuddyChatMode.ASK : mode) {
+            case ASK -> sendGemmaAction("ask", cleaned);
+            case DO -> sendGemmaMessage(cleaned);
+            case PLAN -> sendGemmaAction("plan", cleaned);
+        }
+    }
+
     public static void sendGemmaAction(String actionId, String argument) {
         String cleanedId = actionId == null ? "" : actionId.trim();
         if (cleanedId.isBlank()) {
@@ -188,4 +218,5 @@ public final class GemmaBuddyClient {
                 : "action " + cleanedId + " " + cleanedArgument;
         sendGemmaMessage(command);
     }
+
 }

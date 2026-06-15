@@ -39,6 +39,10 @@ public final class GemmaBuddyConfig {
     private volatile boolean hideReasoningAlways;
     private volatile boolean logLlmErrors;
     private volatile int findRadius;
+    private volatile OutputFormat outputFormat;
+    private volatile double buddyWalkSpeed;
+    private volatile double buddyRunSpeed;
+    private volatile double buddyRunDistanceThreshold;
 
     public synchronized void load() {
         applyDefaults();
@@ -74,6 +78,11 @@ public final class GemmaBuddyConfig {
             hideReasoningAlways = readBoolean(object, "hideReasoningAlways", hideReasoningAlways);
             logLlmErrors = readBoolean(object, "logLlmErrors", logLlmErrors);
             findRadius = clamp(readInt(object, "findRadius", findRadius), 4, 32);
+            outputFormat = OutputFormat.parse(readString(object, "outputFormat", outputFormat.configValue()));
+            buddyWalkSpeed = clamp(readDouble(object, "buddyWalkSpeed", buddyWalkSpeed), 0.5D, 2.0D);
+            buddyRunSpeed = clamp(readDouble(object, "buddyRunSpeed", buddyRunSpeed), 0.5D, 2.5D);
+            buddyRunDistanceThreshold = clamp(
+                    readDouble(object, "buddyRunDistanceThreshold", buddyRunDistanceThreshold), 4.0D, 32.0D);
             save();
         } catch (IOException | RuntimeException ex) {
             applyDefaults();
@@ -96,6 +105,10 @@ public final class GemmaBuddyConfig {
         hideReasoningAlways = true;
         logLlmErrors = true;
         findRadius = 16;
+        outputFormat = OutputFormat.BOTH;
+        buddyWalkSpeed = 1.05D;
+        buddyRunSpeed = 1.35D;
+        buddyRunDistanceThreshold = 8.0D;
     }
 
     public synchronized void save() {
@@ -118,6 +131,10 @@ public final class GemmaBuddyConfig {
             object.addProperty("hideReasoningAlways", hideReasoningAlways);
             object.addProperty("logLlmErrors", logLlmErrors);
             object.addProperty("findRadius", findRadius);
+            object.addProperty("outputFormat", outputFormat.configValue());
+            object.addProperty("buddyWalkSpeed", buddyWalkSpeed);
+            object.addProperty("buddyRunSpeed", buddyRunSpeed);
+            object.addProperty("buddyRunDistanceThreshold", buddyRunDistanceThreshold);
             Files.writeString(configPath, GSON.toJson(object), StandardCharsets.UTF_8);
         } catch (IOException ex) {
             LOGGER.warn("GemmaBuddy config could not be saved.", ex);
@@ -153,6 +170,11 @@ public final class GemmaBuddyConfig {
 
     public String modelProfile() {
         return modelProfile;
+    }
+
+    public synchronized void setModelProfile(String profile) {
+        modelProfile = normalizeProfile(profile);
+        save();
     }
 
     public ThinkingMode thinkingMode() {
@@ -205,8 +227,18 @@ public final class GemmaBuddyConfig {
         return retryWithoutThinkingOnTimeout;
     }
 
+    public synchronized void setRetryWithoutThinkingOnTimeout(boolean enabled) {
+        retryWithoutThinkingOnTimeout = enabled;
+        save();
+    }
+
     public boolean hideReasoningAlways() {
         return hideReasoningAlways;
+    }
+
+    public synchronized void setHideReasoningAlways(boolean enabled) {
+        hideReasoningAlways = enabled;
+        save();
     }
 
     public boolean logLlmErrors() {
@@ -215,6 +247,39 @@ public final class GemmaBuddyConfig {
 
     public int findRadius() {
         return findRadius;
+    }
+
+    public synchronized void setFindRadius(int radius) {
+        findRadius = clamp(radius, 4, 32);
+        save();
+    }
+
+    public OutputFormat outputFormat() {
+        return outputFormat;
+    }
+
+    public synchronized void setOutputFormat(OutputFormat format) {
+        outputFormat = format == null ? OutputFormat.BOTH : format;
+        save();
+    }
+
+    public double buddyWalkSpeed() {
+        return buddyWalkSpeed;
+    }
+
+    public double buddyRunSpeed() {
+        return buddyRunSpeed;
+    }
+
+    public double buddyRunDistanceThreshold() {
+        return buddyRunDistanceThreshold;
+    }
+
+    public synchronized void setBuddyMovement(double walkSpeed, double runSpeed, double runDistanceThreshold) {
+        buddyWalkSpeed = clamp(walkSpeed, 0.5D, 2.0D);
+        buddyRunSpeed = clamp(runSpeed, buddyWalkSpeed, 2.5D);
+        buddyRunDistanceThreshold = clamp(runDistanceThreshold, 4.0D, 32.0D);
+        save();
     }
 
     public Path configPath() {
@@ -272,6 +337,24 @@ public final class GemmaBuddyConfig {
                 return valueOf(value == null ? "OFF" : value.trim().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException ex) {
                 return OFF;
+            }
+        }
+
+        public String configValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum OutputFormat {
+        NATURAL,
+        REGISTRY,
+        BOTH;
+
+        public static OutputFormat parse(String value) {
+            try {
+                return valueOf(value == null ? "BOTH" : value.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                return BOTH;
             }
         }
 

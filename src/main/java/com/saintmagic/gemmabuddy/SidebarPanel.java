@@ -20,6 +20,10 @@ public final class SidebarPanel {
         return collapsed;
     }
 
+    public void setCollapsed(boolean collapsed) {
+        this.collapsed = collapsed;
+    }
+
     public int width() {
         return collapsed ? ScreenTheme.SIDEBAR_COLLAPSED_WIDTH : ScreenTheme.SIDEBAR_EXPANDED_WIDTH;
     }

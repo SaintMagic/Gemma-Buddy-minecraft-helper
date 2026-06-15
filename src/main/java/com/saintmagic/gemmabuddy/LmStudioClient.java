@@ -10,18 +10,22 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.slf4j.Logger;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.logging.LogUtils;
 
 /**
  * Small OpenAI-compatible LM Studio client with explicit local model profiles.
  */
 public final class LmStudioClient {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private final GemmaBuddyConfig config;
     private final HttpClient client;
-    private final AtomicReference<ConnectionStatus> connectionStatus = new AtomicReference<>(ConnectionStatus.UNKNOWN);
+    private final AtomicReference<ResponseStatus> connectionStatus = new AtomicReference<>(ResponseStatus.UNKNOWN);
     private volatile String lastError = "";
 
     public LmStudioClient(GemmaBuddyConfig config) {
@@ -56,17 +60,16 @@ public final class LmStudioClient {
         boolean thinkingEnabled = shouldEnableThinking(profile);
         try {
             LmStudioResponse response = send(systemPrompt, userPrompt, profile, maxTokens, jsonMode, thinkingEnabled);
-            connectionStatus.set(ConnectionStatus.READY);
-            lastError = "";
+            updateResponseStatus(response);
             return response;
         } catch (java.net.http.HttpTimeoutException ex) {
             if (thinkingEnabled && config.retryWithoutThinkingOnTimeout()) {
                 try {
+                    connectionStatus.set(ResponseStatus.RETRYING_WITHOUT_THINKING);
                     LmStudioResponse response = send(
                             systemPrompt + "\nThinking is disabled. Give the final answer immediately.",
                             userPrompt, profile, maxTokens, jsonMode, false);
-                    connectionStatus.set(ConnectionStatus.READY);
-                    lastError = "";
+                    updateResponseStatus(response);
                     return response;
                 } catch (IOException | InterruptedException retryFailure) {
                     markError(retryFailure);
@@ -97,6 +100,11 @@ public final class LmStudioClient {
                 : config.temperatureDefault());
         body.addProperty("max_tokens", maxTokens);
         body.addProperty("enable_thinking", thinkingEnabled);
+        if (!thinkingEnabled) {
+            body.addProperty("reasoning_effort", "none");
+            body.addProperty("reasoning", false);
+            body.addProperty("thinking", false);
+        }
         if (jsonMode) {
             JsonObject format = new JsonObject();
             format.addProperty("type", "json_object");
@@ -107,6 +115,10 @@ public final class LmStudioClient {
         messages.add(message("system", systemPrompt));
         messages.add(message("user", userPrompt));
         body.add("messages", messages);
+        if (config.logLlmErrors()) {
+            LOGGER.info("GemmaBuddy LM request profile={} jsonMode={} thinking={} maxTokens={} timeout={}s endpoint={}",
+                    profile, jsonMode, thinkingEnabled, maxTokens, config.requestTimeoutSeconds(), endpoint);
+        }
 
         HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .timeout(Duration.ofSeconds(config.requestTimeoutSeconds()))
@@ -119,6 +131,7 @@ public final class LmStudioClient {
             throw new IOException("LM Studio HTTP " + response.statusCode() + ": " + abbreviate(response.body()));
         }
 
+        connectionStatus.set(ResponseStatus.CONNECTED);
         LmStudioResponse parsed = parseResponse(response.body());
         return new LmStudioResponse(sanitizeVisibleText(parsed.content()), parsed.reasoningContent(), parsed.rawBody());
     }
@@ -151,14 +164,52 @@ public final class LmStudioClient {
 
     public String connectionStatusLine() {
         return switch (connectionStatus.get()) {
-            case READY -> "Ready";
-            case ERROR -> "Error" + (lastError.isBlank() ? "" : ": " + abbreviate(lastError));
+            case CONNECTED -> "Connected";
+            case MODEL_RESPONDED -> "Model responded";
+            case EMPTY_VISIBLE_CONTENT -> "Visible content empty";
+            case INVALID_PLANNER_JSON -> "Invalid planner JSON";
+            case REASONING_SUPPRESSED -> "Reasoning suppressed";
+            case RETRYING_WITHOUT_THINKING -> "Retrying without thinking";
+            case FALLBACK_USED -> "Fallback used";
+            case DISCONNECTED -> "Disconnected" + (lastError.isBlank() ? "" : ": " + abbreviate(lastError));
             case UNKNOWN -> "Not tested";
         };
     }
 
+    public ResponseStatus responseStatus() {
+        return connectionStatus.get();
+    }
+
+    public void markInvalidPlannerJson() {
+        connectionStatus.set(ResponseStatus.INVALID_PLANNER_JSON);
+    }
+
+    public void markFallbackUsed() {
+        connectionStatus.set(ResponseStatus.FALLBACK_USED);
+    }
+
+    public void markReasoningSuppressed() {
+        connectionStatus.set(ResponseStatus.REASONING_SUPPRESSED);
+    }
+
+    public boolean thinkingOffCompatibilityFieldsEnabled() {
+        return true;
+    }
+
+    private void updateResponseStatus(LmStudioResponse response) {
+        lastError = "";
+        if (response != null && !sanitizeVisibleText(response.content()).isBlank()) {
+            connectionStatus.set(ResponseStatus.MODEL_RESPONDED);
+        } else if (response != null && !response.reasoningContent().isBlank()) {
+            connectionStatus.set(ResponseStatus.REASONING_SUPPRESSED);
+            LOGGER.warn("LM Studio returned hidden reasoning while visible content was blank. Reasoning was suppressed.");
+        } else {
+            connectionStatus.set(ResponseStatus.EMPTY_VISIBLE_CONTENT);
+        }
+    }
+
     private void markError(Exception ex) {
-        connectionStatus.set(ConnectionStatus.ERROR);
+        connectionStatus.set(ResponseStatus.DISCONNECTED);
         lastError = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
     }
 
@@ -221,10 +272,16 @@ public final class LmStudioClient {
         }
     }
 
-    private enum ConnectionStatus {
+    public enum ResponseStatus {
         UNKNOWN,
-        READY,
-        ERROR
+        DISCONNECTED,
+        CONNECTED,
+        MODEL_RESPONDED,
+        EMPTY_VISIBLE_CONTENT,
+        INVALID_PLANNER_JSON,
+        REASONING_SUPPRESSED,
+        RETRYING_WITHOUT_THINKING,
+        FALLBACK_USED
     }
 
     public record LmStudioResponse(String content, String reasoningContent, String rawBody) {
