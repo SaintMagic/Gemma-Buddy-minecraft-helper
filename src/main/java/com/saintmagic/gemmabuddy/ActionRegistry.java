@@ -108,7 +108,6 @@ public final class ActionRegistry {
                         "what can i craft with",
                         "what can i make with",
                         "can i craft with it",
-                        "which mod adds",
                         "what mod added this",
                         "what mod added it",
                         "what mod added that",
@@ -203,6 +202,11 @@ public final class ActionRegistry {
                 "Show recent local player notes.",
                 false, false, InputMode.NONE, null, List.of("notes"), List.of("notes"), this::notesAction));
 
+        register(action("recent_plans", PLANNING, "Recent plans",
+                "Show the most recent locally persisted validated plans.",
+                false, false, InputMode.NONE, null, List.of("recent plans", "show plans"), List.of("plans"),
+                this::recentPlansAction));
+
         register(action("find", FIND, "Find target",
                 "Search inventory, nearby loaded area, and remembered discoveries without loading chunks.",
                 false, true, InputMode.TARGET_INPUT, "item / block / entity", List.of("find"),
@@ -233,6 +237,37 @@ public final class ActionRegistry {
                 "Show the current alpha safety policy.",
                 false, false, InputMode.NONE, null, List.of("permissions"), List.of("permissions"),
                 this::permissionsAction));
+
+        register(action("permissions_set", DEBUG, "Set permission level",
+                "Set read-only, ask-before-action, safe-movement, inventory-actions, block-breaking, or building.",
+                false, true, InputMode.TARGET_INPUT, "permission level", List.of("permissions set"),
+                List.of("permissions set <target>"), this::permissionsSetAction));
+
+        register(action("autoapprove", DEBUG, "Autoapprove safe action",
+                "Enable or disable autoapproval for safe movement only.",
+                false, true, InputMode.TARGET_INPUT, "movement on/off", List.of("autoapprove"),
+                List.of("autoapprove <target>"), this::autoApproveAction));
+
+        register(action("home_where", BUDDY, "Where is home?",
+                "Report the remembered home dimension and coordinates.",
+                false, false, InputMode.NONE, null, List.of("where is home", "home where"),
+                List.of("home where"), this::homeWhereAction));
+
+        register(action("guide_target", FIND, "Guide to target",
+                "Ask approval, then guide the buddy toward the currently tracked known target.",
+                false, false, InputMode.NONE, null, List.of("guide me", "guide to target"),
+                List.of("track guide"), SafetyManager.SafetyLevel.SAFE_MOVEMENT, true, true, "Guide",
+                this::guideTargetAction));
+
+        register(action("track_status", FIND, "Track current target",
+                "Show current tracked target, location, source, and distance.",
+                false, false, InputMode.NONE, null, List.of("track target", "tracking status"),
+                List.of("track status"), this::trackStatusAction));
+
+        register(action("memory_clear", DEBUG, "Clear local memory",
+                "Clear notes, goals, home, discoveries, and tracking after explicit approval.",
+                false, false, InputMode.NONE, null, List.of("clear memory"), List.of("memory clear"),
+                this::memoryClearAction));
 
         register(action("lmstudio_test", DEBUG, "LM Studio test",
                 "Send a tiny request to the LM Studio endpoint and print the response.",
@@ -297,7 +332,26 @@ public final class ActionRegistry {
         register(action("skill_shelter_plan", PLANNING, "Plan basic shelter",
                 "Plan-only starter shelter skill; it never places blocks.",
                 false, false, InputMode.NONE, null, List.of("plan basic shelter"), List.of(),
-                SafetyManager.SafetyLevel.WORLD_CHANGE, true, true, "Shelter", this::planOnlySkillAction));
+                SafetyManager.SafetyLevel.WORLD_CHANGE, true, true, "Shelter",
+                context -> skillPlanAction(context, "build_basic_shelter")));
+
+        register(action("skill_starter_tools_plan", PLANNING, "Plan starter tools",
+                "Plan-only starter tool skill with material estimates.",
+                false, false, InputMode.NONE, null, List.of("plan starter tools", "make starter tools"), List.of(),
+                SafetyManager.SafetyLevel.INVENTORY, true, true, "Tools",
+                context -> skillPlanAction(context, "make_starter_tools")));
+
+        register(action("skill_enchanting_plan", PLANNING, "Plan enchanting setup",
+                "Plan-only enchanting setup with missing material estimates.",
+                false, false, InputMode.NONE, null, List.of("plan enchanting setup", "prepare enchanting setup"),
+                List.of(), SafetyManager.SafetyLevel.WORLD_CHANGE, true, true, "Enchant",
+                context -> skillPlanAction(context, "prepare_enchanting_setup")));
+
+        register(action("skill_organize_plan", PLANNING, "Organize next steps",
+                "Create a safe deterministic checklist from current state.",
+                false, false, InputMode.NONE, null, List.of("organize next steps"), List.of(),
+                SafetyManager.SafetyLevel.READ_ONLY, false, true, "Organize",
+                context -> skillPlanAction(context, "organize_next_steps")));
     }
 
     public Collection<ActionDefinition> allActions() {
@@ -652,6 +706,7 @@ public final class ActionRegistry {
     }
 
     private ActionResult despawnAction(ActionContext context) {
+        context.safety().stopAll(context.player());
         GemmaBuddy.despawnBuddy(context.player());
         return ActionResult.success("Buddy despawn requested.");
     }
@@ -663,15 +718,21 @@ public final class ActionRegistry {
 
     private ActionResult followAction(ActionContext context) {
         return context.safety().requestApproval(context.player(), "follow", "let GemmaBuddy follow you",
+                SafetyManager.SafetyLevel.SAFE_MOVEMENT,
                 () -> GemmaBuddy.setBuddyMode(context.player(), GemmaBuddyEntity.BuddyMode.FOLLOW));
     }
 
     private ActionResult stayAction(ActionContext context) {
-        return GemmaBuddy.setBuddyMode(context.player(), GemmaBuddyEntity.BuddyMode.STAY);
+        ActionResult result = GemmaBuddy.setBuddyMode(context.player(), GemmaBuddyEntity.BuddyMode.STAY);
+        if (result.success()) {
+            context.safety().completeTask(context.player(), "Buddy is staying.");
+        }
+        return result;
     }
 
     private ActionResult comeAction(ActionContext context) {
         return context.safety().requestApproval(context.player(), "come", "move GemmaBuddy to you",
+                SafetyManager.SafetyLevel.SAFE_MOVEMENT,
                 () -> GemmaBuddy.setBuddyMode(context.player(), GemmaBuddyEntity.BuddyMode.COME_TO_PLAYER));
     }
 
@@ -684,6 +745,7 @@ public final class ActionRegistry {
 
     private ActionResult returnHomeAction(ActionContext context) {
         return context.safety().requestApproval(context.player(), "return_home", "move GemmaBuddy to marked home",
+                SafetyManager.SafetyLevel.SAFE_MOVEMENT,
                 () -> GemmaBuddy.setBuddyMode(context.player(), GemmaBuddyEntity.BuddyMode.RETURN_HOME));
     }
 
@@ -731,6 +793,17 @@ public final class ActionRegistry {
         return ActionResult.success("Notes shown.");
     }
 
+    private ActionResult recentPlansAction(ActionContext context) {
+        List<String> plans = context.memory().recentPlans();
+        if (plans.isEmpty()) {
+            GemmaBuddy.sendLine(context.player(), "No validated plans are saved yet.");
+            return ActionResult.failure("No recent plans.");
+        }
+        GemmaBuddy.sendLine(context.player(), "Recent validated plans:");
+        plans.stream().skip(Math.max(0, plans.size() - 3)).forEach(plan -> GemmaBuddy.sendLine(context.player(), plan));
+        return ActionResult.success("Recent plans shown.");
+    }
+
     private ActionResult findAction(ActionContext context) {
         String query = firstNonBlank(context.argument(), context.normalizedInput());
         if (query.isBlank()) {
@@ -739,7 +812,8 @@ public final class ActionRegistry {
         }
         FindService.FindResult result = context.find().find(context.player(), query, GemmaBuddy.config().findRadius());
         if (!result.resolvedId().isBlank()) {
-            context.memory().setTrackedTarget(result.resolvedId());
+            context.memory().setTrackedTarget(result.resolvedId(),
+                    context.player().level().dimension().location().toString(), result.position(), result.source());
             GemmaBuddy.sendLine(context.player(), result.message() + " at " + result.position().toShortString()
                     + " (" + result.distance() + "m, source=" + result.source() + ").");
             return ActionResult.success("Find target located.");
@@ -749,26 +823,53 @@ public final class ActionRegistry {
     }
 
     private ActionResult scanAction(ActionContext context) {
-        String target = ContextResolver.resolveTarget(context.player(), context.knowledge(), "what does this do");
-        if (target.isBlank()) {
+        if (context.player().containerMenu != context.player().inventoryMenu) {
+            int remembered = 0;
+            java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+            for (net.minecraft.world.inventory.Slot slot : context.player().containerMenu.slots) {
+                net.minecraft.world.item.ItemStack stack = slot.getItem();
+                if (stack.isEmpty()) {
+                    continue;
+                }
+                net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(stack.getItem());
+                if (id != null && seen.add(id.toString())) {
+                    context.memory().rememberDiscovery(id.toString(), "opened_container",
+                            context.player().level().dimension().location().toString(),
+                            context.player().blockPosition());
+                    remembered++;
+                }
+            }
+            GemmaBuddy.sendLine(context.player(), "Remembered " + remembered
+                    + " distinct item types from the currently open container.");
+            return ActionResult.success("Open container scanned.");
+        }
+
+        ContextResolver.ResolvedContext resolved = ContextResolver.resolveLookedAt(context.player());
+        if (resolved == null) {
             GemmaBuddy.sendError(context.player(), "Look directly at a block/entity or hold an item, then scan again.");
             return ActionResult.failure("No context target.");
         }
-        context.knowledge().rememberResolvedTarget(target);
-        context.memory().setTrackedTarget(target);
-        GemmaBuddy.sendLine(context.player(), "Scanned context target: " + target + ".");
+        context.knowledge().rememberResolvedTarget(resolved.registryId());
+        String dimension = context.player().level().dimension().location().toString();
+        context.memory().rememberDiscovery(resolved.registryId(), "manual_" + resolved.type(), dimension,
+                resolved.position());
+        context.memory().setTrackedTarget(resolved.registryId(), dimension, resolved.position(),
+                "manual_" + resolved.type());
+        GemmaBuddy.sendLine(context.player(), "Scanned context target: " + resolved.registryId() + " at "
+                + resolved.position().toShortString() + ".");
         return ActionResult.success("Context target scanned.");
     }
 
     private ActionResult trackStopAction(ActionContext context) {
-        context.memory().setTrackedTarget("");
+        context.memory().clearTrackedTarget();
         GemmaBuddy.sendLine(context.player(), "Tracking stopped.");
         return ActionResult.success("Tracking stopped.");
     }
 
     private ActionResult stopAction(ActionContext context) {
         context.safety().stopAll(context.player());
-        context.memory().setTrackedTarget("");
+        context.memory().clearTrackedTarget();
         GemmaBuddyEntity buddy = GemmaBuddy.nearestBuddy(context.player());
         if (buddy != null) {
             buddy.setBuddyMode(GemmaBuddyEntity.BuddyMode.STOPPED);
@@ -789,6 +890,88 @@ public final class ActionRegistry {
     private ActionResult permissionsAction(ActionContext context) {
         GemmaBuddy.sendLine(context.player(), context.safety().statusLine(context.player()));
         return ActionResult.success("Permission status shown.");
+    }
+
+    private ActionResult permissionsSetAction(ActionContext context) {
+        String raw = normalize(context.argument());
+        PermissionManager.PermissionLevel level = PermissionManager.PermissionLevel.parse(raw);
+        if (level == PermissionManager.PermissionLevel.READ_ONLY
+                && !List.of("read-only", "readonly", "read only").contains(raw.toLowerCase(Locale.ROOT))) {
+            GemmaBuddy.sendError(context.player(),
+                    "Use: read-only, ask-before-action, safe-movement, inventory-actions, block-breaking, or building.");
+            return ActionResult.failure("Unknown permission level.");
+        }
+        context.safety().permissions().setLevel(context.player().getUUID(), level);
+        GemmaBuddy.sendLine(context.player(), "Permission level set to " + level.configValue()
+                + ". Destructive execution still remains locked in this alpha.");
+        return ActionResult.success("Permission level saved.");
+    }
+
+    private ActionResult autoApproveAction(ActionContext context) {
+        String raw = canonicalize(context.argument());
+        boolean enabled = !raw.endsWith(" off") && !raw.equals("off");
+        if (!raw.contains("movement")) {
+            GemmaBuddy.sendError(context.player(), "Only safe movement can be autoapproved: movement on/off.");
+            return ActionResult.failure("Unsafe autoapprove target.");
+        }
+        context.safety().permissions().setAutoApprove(context.player().getUUID(),
+                SafetyManager.SafetyLevel.SAFE_MOVEMENT, enabled);
+        GemmaBuddy.sendLine(context.player(), "Safe movement autoapprove " + (enabled ? "enabled" : "disabled") + ".");
+        return ActionResult.success("Autoapprove setting saved.");
+    }
+
+    private ActionResult homeWhereAction(ActionContext context) {
+        MemoryManager.HomeLocation home = context.memory().home();
+        if (home == null) {
+            GemmaBuddy.sendLine(context.player(), "No home is marked.");
+            return ActionResult.failure("Home is not marked.");
+        }
+        GemmaBuddy.sendLine(context.player(), "Home: " + home.position().toShortString() + " in " + home.dimension()
+                + ".");
+        return ActionResult.success("Home location shown.");
+    }
+
+    private ActionResult trackStatusAction(ActionContext context) {
+        MemoryManager.TrackedTarget target = context.memory().trackedTarget();
+        if (target == null) {
+            GemmaBuddy.sendLine(context.player(), "No target is currently tracked.");
+            return ActionResult.failure("No tracked target.");
+        }
+        if (!target.dimension().equals(context.player().level().dimension().location().toString())) {
+            GemmaBuddy.sendLine(context.player(), "Tracking " + target.registryId() + " in " + target.dimension()
+                    + " at " + target.position().toShortString() + ".");
+            return ActionResult.success("Tracked target is in another dimension.");
+        }
+        int distance = (int) Math.round(Math.sqrt(target.position().distSqr(context.player().blockPosition())));
+        GemmaBuddy.sendLine(context.player(), "Tracking " + target.registryId() + " at "
+                + target.position().toShortString() + " (" + distance + "m, source=" + target.source() + ").");
+        return ActionResult.success("Tracking status shown.");
+    }
+
+    private ActionResult guideTargetAction(ActionContext context) {
+        MemoryManager.TrackedTarget target = context.memory().trackedTarget();
+        if (target == null) {
+            GemmaBuddy.sendError(context.player(), "Find or scan a target first.");
+            return ActionResult.failure("No tracked target.");
+        }
+        String dimension = context.player().level().dimension().location().toString();
+        if (!dimension.equals(target.dimension())) {
+            GemmaBuddy.sendError(context.player(), "Target is in another dimension; cross-dimension guidance is locked.");
+            return ActionResult.failure("Tracked target is in another dimension.");
+        }
+        return context.safety().requestApproval(context.player(), "guide_target",
+                "guide GemmaBuddy toward " + target.registryId(), SafetyManager.SafetyLevel.SAFE_MOVEMENT,
+                () -> GemmaBuddy.guideBuddyTo(context.player(), target.position()));
+    }
+
+    private ActionResult memoryClearAction(ActionContext context) {
+        return context.safety().requestConfirmation(context.player(), "memory_clear",
+                "clear all GemmaBuddy local memory for this installation", () -> {
+                    context.memory().clearAll();
+                    context.goals().clear();
+                    GemmaBuddy.sendLine(context.player(), "Local GemmaBuddy memory cleared.");
+                    return ActionResult.success("Local memory cleared.");
+                });
     }
 
     private ActionResult lmStudioTestAction(ActionContext context) {
@@ -982,6 +1165,44 @@ public final class ActionRegistry {
         if (GemmaBuddy.config().lmStudioEndpoint().isBlank()) {
             failures.add("LM Studio endpoint missing");
         }
+        if (context.safety().permissions().state(java.util.UUID.randomUUID()).level()
+                != PermissionManager.PermissionLevel.READ_ONLY) {
+            failures.add("default permission is not read-only");
+        }
+        net.minecraft.resources.ResourceLocation consoleId = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .getKey(GemmaBuddyItems.CONSOLE.get());
+        if (consoleId == null || !consoleId.toString().equals("gemmabuddy:console")) {
+            failures.add("console item registration");
+        }
+        if (context.player().getServer() != null) {
+            context.repository().answerQuestion(context.player().getServer(), "what is spruce leaves");
+            java.nio.file.Path jsonCard = java.nio.file.Path.of(context.repository().docsRootPath())
+                    .resolve("minecraft").resolve("spruce_leaves.json");
+            if (java.nio.file.Files.notExists(jsonCard)) {
+                failures.add("documentation JSON card");
+            }
+        }
+        List<PlannerService.AvailableAction> chainActions = List.of(
+                new PlannerService.AvailableAction("gather_cobble_8", "mine_block", "minecraft:stone",
+                        "Gather cobblestone", List.of(), List.of("minecraft:cobblestone x8"), "world_change", true,
+                        false),
+                new PlannerService.AvailableAction("craft_furnace_after_cobble", "craft_item",
+                        "minecraft:furnace", "Craft furnace", List.of("minecraft:cobblestone x8"),
+                        List.of("minecraft:furnace x1"), "inventory", true, false));
+        PlannerService.PlannerFactPacket chainPacket = new PlannerService.PlannerFactPacket("chain",
+                packet.playerState(), List.of(), "", "", chainActions, packet.safetyRules());
+        PlannerService.ValidatedPlan chainPlan = context.planner().validate(chainPacket,
+                new PlannerService.PlannerProposal("chain",
+                        List.of(
+                                new PlannerService.ProposedStep("gather_cobble_8", "", ""),
+                                new PlannerService.ProposedStep("craft_furnace_after_cobble", "",
+                                        "gather_cobble_8")),
+                        List.of(), 1.0D, List.of()));
+        if (chainPlan.steps().size() != 2
+                || !"conditional".equals(chainPlan.steps().get(0).status())
+                || !"requires_previous_step".equals(chainPlan.steps().get(1).status())) {
+            failures.add("valid projected crafting chain");
+        }
         if (failures.isEmpty()) {
             GemmaBuddy.sendLine(context.player(), "Self-check passed: actions, aliases, planner refs, config, and knowledge.");
             LOGGER.info("GemmaBuddy self-check passed with {} actions", actionsById.size());
@@ -992,9 +1213,21 @@ public final class ActionRegistry {
         return ActionResult.failure("Self-check failed.");
     }
 
-    private ActionResult planOnlySkillAction(ActionContext context) {
-        GemmaBuddy.sendLine(context.player(),
-                "Plan-only shelter skill: choose a safe site, estimate blocks, add light and a door. Execution is locked.");
+    private ActionResult skillPlanAction(ActionContext context, String skillId) {
+        SkillRegistry.SkillPlan plan = context.skills().plan(skillId, context.snapshot());
+        GemmaBuddy.sendLine(context.player(), plan.label() + " [plan-only, can_execute=false]");
+        if (!plan.materials().isEmpty()) {
+            GemmaBuddy.sendLine(context.player(), "Estimated materials: " + String.join(", ", plan.materials()) + ".");
+        }
+        if (!plan.missing().isEmpty()) {
+            GemmaBuddy.sendLine(context.player(), "Missing from current inventory: "
+                    + String.join(", ", plan.missing()) + ".");
+        }
+        int step = 1;
+        for (String value : plan.steps()) {
+            GemmaBuddy.sendLine(context.player(), step++ + ". " + value);
+        }
+        GemmaBuddy.sendLine(context.player(), "Execution is locked; this skill only prepares a preview.");
         return ActionResult.success("Plan-only skill shown; can_execute=false.");
     }
 
@@ -1116,7 +1349,9 @@ public final class ActionRegistry {
                     GemmaBuddy.sendError(context.player(), "Plan generation failed safely. No action was executed.");
                     return;
                 }
-                context.planner().playerLines(plan).forEach(line -> GemmaBuddy.sendLine(context.player(), line));
+                List<String> lines = context.planner().playerLines(plan);
+                lines.forEach(line -> GemmaBuddy.sendLine(context.player(), line));
+                context.memory().rememberPlan(lines);
                 context.goals().markComplete("Validated plan ready");
             };
             if (server != null) {

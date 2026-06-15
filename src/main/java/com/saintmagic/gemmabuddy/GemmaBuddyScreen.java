@@ -373,11 +373,16 @@ public final class GemmaBuddyScreen extends Screen {
                 false);
 
         List<String> segments = new ArrayList<>();
-        segments.add("LM: " + GemmaBuddy.llmModel());
+        segments.add("LM: " + GemmaBuddy.llmConnectionStatus());
+        segments.add("Model: " + GemmaBuddy.llmModel());
         segments.add("Think: " + GemmaBuddy.config().thinkingMode().configValue());
         segments.add(GemmaBuddyClient.voiceStatusLine());
         segments.add(GemmaBuddyClient.buddyStatusLine());
         segments.add(GemmaBuddy.knowledgeIndex().isBusy() ? "Knowledge: working" : "Knowledge: ready");
+        MemoryManager.TrackedTarget tracked = GemmaBuddy.memoryManager().trackedTarget();
+        if (tracked != null) {
+            segments.add("Track: " + tracked.registryId());
+        }
         String goalLine = GemmaBuddy.goalManager().statusLine();
         if (!goalLine.isBlank()) {
             segments.add("Goal: " + goalLine);

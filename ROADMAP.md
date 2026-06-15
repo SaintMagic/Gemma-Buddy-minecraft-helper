@@ -130,9 +130,10 @@ Status: In progress.
 
 ## Phase 7: Safe Action System
 
-Status: Alpha plumbing.
+Status: Functional alpha.
 
 - Permissions, approvals, action queue, and universal stop.
+- Persistent per-player levels and safe movement autoapproval.
 - Read-only actions execute directly.
 - Movement and world-affecting actions require policy checks.
 - Mining, breaking, placing, attacking, looting, and inventory manipulation remain blocked.
@@ -147,22 +148,25 @@ Status: Alpha movement only.
 
 ## Phase 8.5: Fair Find Mode
 
-Status: Alpha loaded-area search.
+Status: Functional alpha loaded-area search.
 
 - Search inventory, nearby drops, nearby loaded blocks/entities, and memory.
+- Remember explicitly scanned open-container contents and known target coordinates.
+- Track targets and guide the buddy to known same-dimension positions.
 - No chunk loading and no whole-world x-ray.
 - Unknown targets return scout hints rather than fake coordinates.
 
 ## Phase 8.6: GemmaBuddy Console / Mini Tablet
 
-Status: Locked until action, movement, and find systems are stable.
+Status: Functional alpha.
 
 - Compact field console with recent replies, goal, buddy, tracking, and quick actions.
 - All buttons must route through `ActionRegistry`.
+- Craftable console item; right-click opens mini UI and shift-right-click scans context.
 
 ## Phase 9: Skill System / Advanced Building
 
-Status: Plan-only.
+Status: Functional plan-only alpha.
 
 - Initial skills produce material estimates, missing materials, approvals, and validated steps.
 - `can_execute` stays false until preview, safety, and world-action systems are proven.
@@ -188,3 +192,7 @@ An incomplete feature may ship only when it:
 ## Golden Rule
 
 Every phase leaves a usable build. GemmaBuddy should become clever one tested brick at a time, not become a 400-mixin crater.
+
+## Beyond Alpha
+
+The proposed evidence graph, progression simulator, spatial episodic memory, explainability UI, correction learning, adapter SDK, and benchmark harness are described in `STATE_OF_THE_ART.md`.

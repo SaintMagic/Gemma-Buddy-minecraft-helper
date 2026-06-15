@@ -29,11 +29,12 @@ public final class CommandRouter {
     private final SafetyManager safety;
     private final FindService find;
     private final PlannerService planner;
+    private final SkillRegistry skills;
     private final LmStudioClient llm;
 
     public CommandRouter(ActionRegistry actions, GoalManager goals, KnowledgeIndex knowledge,
             KnowledgeRepository repository, MemoryManager memory, SafetyManager safety, FindService find,
-            PlannerService planner, LmStudioClient llm) {
+            PlannerService planner, SkillRegistry skills, LmStudioClient llm) {
         this.actions = actions;
         this.goals = goals;
         this.knowledge = knowledge;
@@ -42,6 +43,7 @@ public final class CommandRouter {
         this.safety = safety;
         this.find = find;
         this.planner = planner;
+        this.skills = skills;
         this.llm = llm;
     }
 
@@ -102,6 +104,7 @@ public final class CommandRouter {
                 safety,
                 find,
                 planner,
+                skills,
                 llm);
 
         LOGGER.info("GemmaBuddy action resolved id='{}' alias='{}' argument='{}' input='{}'",
@@ -131,6 +134,7 @@ public final class CommandRouter {
                 safety,
                 find,
                 planner,
+                skills,
                 llm);
         LOGGER.info("GemmaBuddy fallback routed to plan input='{}'", input);
         return actions.execute(context, plan.id());
@@ -159,6 +163,7 @@ public final class CommandRouter {
                     safety,
                     find,
                     planner,
+                    skills,
                     llm);
             ActionResult result = actions.execute(context, definition.id());
             return result.success() ? 1 : 0;

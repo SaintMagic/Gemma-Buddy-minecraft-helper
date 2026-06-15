@@ -25,6 +25,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraft.world.item.CreativeModeTabs;
 
 /**
  * GemmaBuddy server-side core and coordinator.
@@ -41,21 +43,25 @@ public final class GemmaBuddy {
 
     private static final GemmaBuddyConfig CONFIG = new GemmaBuddyConfig();
     private static final MemoryManager MEMORY = createMemoryManager();
-    private static final SafetyManager SAFETY = new SafetyManager();
+    private static final PermissionManager PERMISSIONS = createPermissionManager();
+    private static final SafetyManager SAFETY = new SafetyManager(PERMISSIONS);
     private static final ActionRegistry ACTION_REGISTRY = new ActionRegistry();
     private static final GoalManager GOAL_MANAGER = new GoalManager(MEMORY);
     private static final KnowledgeIndex KNOWLEDGE_INDEX = new KnowledgeIndex();
     private static final KnowledgeRepository KNOWLEDGE_REPOSITORY = new KnowledgeDataverse(KNOWLEDGE_INDEX);
     private static final FindService FIND_SERVICE = new FindService(KNOWLEDGE_REPOSITORY, MEMORY);
     private static final PlannerService PLANNER_SERVICE = new PlannerService();
+    private static final SkillRegistry SKILL_REGISTRY = new SkillRegistry();
     private static final LmStudioClient LLM = new LmStudioClient(CONFIG);
     private static final CommandRouter COMMAND_ROUTER = new CommandRouter(ACTION_REGISTRY, GOAL_MANAGER,
-            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, MEMORY, SAFETY, FIND_SERVICE, PLANNER_SERVICE, LLM);
+            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, MEMORY, SAFETY, FIND_SERVICE, PLANNER_SERVICE, SKILL_REGISTRY, LLM);
 
     public GemmaBuddy(IEventBus modEventBus) {
         CONFIG.load();
+        GemmaBuddyItems.ITEMS.register(modEventBus);
         GemmaBuddyEntities.ENTITY_TYPES.register(modEventBus);
         modEventBus.addListener(this::onEntityAttributeCreation);
+        modEventBus.addListener(this::onCreativeTabContents);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
         LOGGER.info("GemmaBuddy loaded. LM Studio endpoint: {}", CONFIG.lmStudioEndpoint());
@@ -76,6 +82,7 @@ public final class GemmaBuddy {
     public static void reloadConfig() {
         CONFIG.load();
         MEMORY.load();
+        PERMISSIONS.load();
     }
 
     public static String llmEndpoint() {
@@ -99,6 +106,10 @@ public final class GemmaBuddy {
                 + " | thinking: " + CONFIG.thinkingMode().configValue();
     }
 
+    public static String llmConnectionStatus() {
+        return LLM.connectionStatusLine();
+    }
+
     public static CommandRouter commandRouter() {
         return COMMAND_ROUTER;
     }
@@ -117,6 +128,12 @@ public final class GemmaBuddy {
 
     private void onEntityAttributeCreation(EntityAttributeCreationEvent event) {
         event.put(GemmaBuddyEntities.GEMMA_BUDDY.get(), GemmaBuddyEntity.createAttributes().build());
+    }
+
+    private void onCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey().equals(CreativeModeTabs.TOOLS_AND_UTILITIES)) {
+            event.accept(GemmaBuddyItems.CONSOLE.get());
+        }
     }
 
     private void onServerChat(ServerChatEvent event) {
@@ -238,10 +255,29 @@ public final class GemmaBuddy {
         return ActionResult.success("Buddy mode changed.");
     }
 
+    public static ActionResult guideBuddyTo(ServerPlayer player, BlockPos target) {
+        GemmaBuddyEntity buddy = nearestBuddy(player);
+        if (buddy == null) {
+            sendError(player, "GemmaBuddy is not spawned. Use /gemmabuddy spawn first.");
+            return ActionResult.failure("Buddy is not spawned.");
+        }
+        buddy.setOwnerUuid(player.getUUID());
+        buddy.setMovementTarget(target);
+        buddy.setBuddyMode(GemmaBuddyEntity.BuddyMode.GUIDING_TO_TARGET);
+        sendLine(player, "GemmaBuddy is guiding toward " + formatPosition(target) + ".");
+        return ActionResult.success("Buddy guidance started.");
+    }
+
     private static MemoryManager createMemoryManager() {
         MemoryManager memory = new MemoryManager();
         memory.load();
         return memory;
+    }
+
+    private static PermissionManager createPermissionManager() {
+        PermissionManager permissions = new PermissionManager();
+        permissions.load();
+        return permissions;
     }
 
     private static boolean isCompanion(GemmaBuddyEntity mob) {

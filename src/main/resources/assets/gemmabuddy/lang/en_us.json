@@ -1,5 +1,6 @@
 {
   "key.gemmabuddy.open_chat": "Open GemmaBuddy Chat",
   "key.gemmabuddy.voice_ptt": "Voice Push-to-Talk",
-  "key.categories.gemmabuddy": "GemmaBuddy"
+  "key.categories.gemmabuddy": "GemmaBuddy",
+  "item.gemmabuddy.console": "GemmaBuddy Console"
 }

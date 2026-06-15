@@ -34,6 +34,8 @@ public final class GemmaBuddyClient {
     private static final VoiceControlManager VOICE_CONTROL = new VoiceControlManager();
 
     public GemmaBuddyClient(IEventBus modEventBus, ModContainer modContainer) {
+        GemmaBuddyClientBridge.install(GemmaBuddyClient::openMiniConsole,
+                () -> GemmaBuddyClient.sendGemmaAction("scan", ""));
         modEventBus.addListener(this::registerKeyMappings);
         modEventBus.addListener(this::registerLayerDefinitions);
         modEventBus.addListener(this::registerRenderers);
@@ -78,6 +80,13 @@ public final class GemmaBuddyClient {
         }
 
         minecraft.setScreen(new GemmaBuddyScreen());
+    }
+
+    public static void openMiniConsole() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new GemmaBuddyMiniConsoleScreen());
+        }
     }
 
     public static boolean isVoiceRecording() {

@@ -23,5 +23,6 @@ public record ActionContext(
         SafetyManager safety,
         FindService find,
         PlannerService planner,
+        SkillRegistry skills,
         LmStudioClient llm) {
 }

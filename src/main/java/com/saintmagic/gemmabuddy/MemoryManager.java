@@ -30,21 +30,24 @@ public final class MemoryManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final int MAX_NOTES = 100;
     private static final int MAX_DISCOVERIES = 250;
+    private static final int MAX_RECENT_PLANS = 20;
 
     private final Path root = FMLPaths.CONFIGDIR.get().resolve(GemmaBuddy.MOD_ID).resolve("memory");
     private final Path file = root.resolve("memory.json");
     private final List<String> notes = new ArrayList<>();
     private final List<Discovery> discoveries = new ArrayList<>();
+    private final List<String> recentPlans = new ArrayList<>();
     private String currentGoal = "";
     private HomeLocation home;
-    private String trackedTarget = "";
+    private TrackedTarget trackedTarget;
 
     public synchronized void load() {
         notes.clear();
         discoveries.clear();
+        recentPlans.clear();
         currentGoal = "";
         home = null;
-        trackedTarget = "";
+        trackedTarget = null;
         try {
             Files.createDirectories(root);
             if (Files.notExists(file)) {
@@ -53,9 +56,17 @@ public final class MemoryManager {
             }
             JsonObject object = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
             currentGoal = readString(object, "currentGoal");
-            trackedTarget = readString(object, "trackedTarget");
+            if (object.has("trackedTarget") && object.get("trackedTarget").isJsonObject()) {
+                trackedTarget = TrackedTarget.fromJson(object.getAsJsonObject("trackedTarget"));
+            } else {
+                String legacyTarget = readString(object, "trackedTarget");
+                if (!legacyTarget.isBlank()) {
+                    trackedTarget = new TrackedTarget(legacyTarget, "", BlockPos.ZERO, "legacy", Instant.now().toString());
+                }
+            }
             readArray(object, "notes").forEach(value -> notes.add(value.getAsString()));
             readArray(object, "discoveries").forEach(value -> discoveries.add(Discovery.fromJson(value.getAsJsonObject())));
+            readArray(object, "recentPlans").forEach(value -> recentPlans.add(value.getAsString()));
             if (object.has("home") && object.get("home").isJsonObject()) {
                 home = HomeLocation.fromJson(object.getAsJsonObject("home"));
             }
@@ -69,13 +80,18 @@ public final class MemoryManager {
             Files.createDirectories(root);
             JsonObject object = new JsonObject();
             object.addProperty("currentGoal", currentGoal);
-            object.addProperty("trackedTarget", trackedTarget);
+            if (trackedTarget != null) {
+                object.add("trackedTarget", trackedTarget.toJson());
+            }
             JsonArray noteArray = new JsonArray();
             notes.forEach(noteArray::add);
             object.add("notes", noteArray);
             JsonArray discoveryArray = new JsonArray();
             discoveries.forEach(discovery -> discoveryArray.add(discovery.toJson()));
             object.add("discoveries", discoveryArray);
+            JsonArray planArray = new JsonArray();
+            recentPlans.forEach(planArray::add);
+            object.add("recentPlans", planArray);
             if (home != null) {
                 object.add("home", home.toJson());
             }
@@ -135,21 +151,44 @@ public final class MemoryManager {
         return discoveries.stream().filter(value -> value.registryId().equals(registryId)).toList();
     }
 
-    public synchronized void setTrackedTarget(String target) {
-        trackedTarget = normalize(target);
+    public synchronized void setTrackedTarget(String target, String dimension, BlockPos position, String source) {
+        String normalized = normalize(target);
+        trackedTarget = normalized.isBlank() ? null
+                : new TrackedTarget(normalized, normalize(dimension),
+                        position == null ? BlockPos.ZERO : position.immutable(), normalize(source),
+                        Instant.now().toString());
         save();
     }
 
-    public synchronized String trackedTarget() {
+    public synchronized TrackedTarget trackedTarget() {
         return trackedTarget;
+    }
+
+    public synchronized void clearTrackedTarget() {
+        trackedTarget = null;
+        save();
+    }
+
+    public synchronized void rememberPlan(List<String> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        recentPlans.add(Instant.now() + " | " + String.join(" / ", lines));
+        trimTo(recentPlans, MAX_RECENT_PLANS);
+        save();
+    }
+
+    public synchronized List<String> recentPlans() {
+        return List.copyOf(recentPlans);
     }
 
     public synchronized void clearAll() {
         notes.clear();
         discoveries.clear();
+        recentPlans.clear();
         currentGoal = "";
         home = null;
-        trackedTarget = "";
+        trackedTarget = null;
         save();
     }
 
@@ -213,6 +252,26 @@ public final class MemoryManager {
                     readString(object, "dimension"),
                     new BlockPos(object.get("x").getAsInt(), object.get("y").getAsInt(), object.get("z").getAsInt()),
                     readString(object, "lastSeen"));
+        }
+    }
+
+    public record TrackedTarget(String registryId, String dimension, BlockPos position, String source, String lastSeen) {
+        JsonObject toJson() {
+            JsonObject object = new JsonObject();
+            object.addProperty("registryId", registryId);
+            object.addProperty("dimension", dimension);
+            object.addProperty("x", position.getX());
+            object.addProperty("y", position.getY());
+            object.addProperty("z", position.getZ());
+            object.addProperty("source", source);
+            object.addProperty("lastSeen", lastSeen);
+            return object;
+        }
+
+        static TrackedTarget fromJson(JsonObject object) {
+            return new TrackedTarget(readString(object, "registryId"), readString(object, "dimension"),
+                    new BlockPos(object.get("x").getAsInt(), object.get("y").getAsInt(), object.get("z").getAsInt()),
+                    readString(object, "source"), readString(object, "lastSeen"));
         }
     }
 }

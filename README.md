@@ -28,6 +28,8 @@ Copy it to the `mods` folder of the matching NeoForge 1.21.1 PrismLauncher insta
 
 - `G`: full GemmaBuddy companion console
 - `V`: experimental push-to-talk when `enableVoiceControl=true`
+- Right-click `GemmaBuddy Console`: open the compact field console
+- Shift-right-click `GemmaBuddy Console`: scan the looked-at block/entity or held item
 - Voice is disabled by default and never bypasses routing, permissions, or approvals.
 
 ## Core Commands
@@ -57,6 +59,11 @@ Copy it to the `mods` folder of the matching NeoForge 1.21.1 PrismLauncher insta
 /gemmabuddy scan
 /gemmabuddy approve
 /gemmabuddy deny
+/gemmabuddy permissions
+/gemmabuddy permissions set <level>
+/gemmabuddy autoapprove movement on
+/gemmabuddy track status
+/gemmabuddy track guide
 /gemmabuddy selfcheck
 ```
 
@@ -72,6 +79,8 @@ gemma remember check the village later
 gemma plan survive the night and work toward enchanting
 gemma follow me
 gemma find spruce log
+gemma track target
+gemma guide me
 gemma stop
 ```
 
@@ -121,11 +130,20 @@ Knowledge cards are built from local registries, recipes, tags, and reports. Mem
 ## Safety
 
 - Default permission posture is read-only.
-- Movement requests require approval where appropriate.
+- Permission levels are `read-only`, `ask-before-action`, `safe-movement`, `inventory-actions`, `block-breaking`, and `building`.
+- Permission choices persist locally per player UUID.
+- Movement requests require approval at `ask-before-action`; `safe-movement` can run them directly.
+- Only safe movement can be autoapproved in this alpha.
 - `gemma stop` clears movement, tracking, queued work, and pending approval.
 - Mining, breaking, placing, attacking, looting, inventory manipulation, and autonomous building are locked.
 - Search only inspects inventory, remembered discoveries, and a configured loaded-area radius. It does not load chunks.
 - Building skills are plan-only.
+
+## GemmaBuddy Console
+
+The portable console recipe uses a clock, four iron ingots, three redstone dust, and one glass pane. It opens a compact phone-like UI with recent replies, goal/tracking status, and shared action buttons for Follow, Stay, Come, Stop, Scan, Find, Track, Guide, and the full G UI.
+
+The console never duplicates action logic; every button routes through the same `CommandRouter` and `ActionRegistry`.
 
 ## Troubleshooting
 
@@ -147,10 +165,11 @@ Run `/gemmabuddy knowledge rebuild`, then `/gemmabuddy knowledge status`. Genera
 
 ## Known Limits
 
-- Tablet/mini-console item is not enabled yet.
 - No destructive autonomous actions.
 - No unloaded-chunk or whole-world search.
 - Some mod recipes expose alternatives without precise tag names; answers state what local data knows.
 - Experimental voice depends on a compatible local transcription endpoint and remains optional.
+- Guidebook/quest/KubeJS extraction is not yet universal across every mod format.
 
-See [ROADMAP.md](ROADMAP.md) and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+See [ROADMAP.md](ROADMAP.md), [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), and
+[STATE_OF_THE_ART.md](STATE_OF_THE_ART.md).

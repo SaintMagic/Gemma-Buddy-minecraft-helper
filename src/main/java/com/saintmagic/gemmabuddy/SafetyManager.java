@@ -1,26 +1,51 @@
 package com.saintmagic.gemmabuddy;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Central alpha safety gate. World-changing actions stay blocked; movement can
- * be approved one request at a time while the default permission is read-only.
+ * Central safety gate and lightweight task queue.
  */
 public final class SafetyManager {
+    private final PermissionManager permissions;
     private final Map<UUID, PendingApproval> pending = new ConcurrentHashMap<>();
-    private final Map<UUID, String> activeTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, ActionTask> activeTasks = new ConcurrentHashMap<>();
+    private final AtomicLong taskSequence = new AtomicLong();
+
+    public SafetyManager(PermissionManager permissions) {
+        this.permissions = permissions;
+    }
 
     public ActionResult requestApproval(ServerPlayer player, String actionId, String description,
-            Supplier<ActionResult> approved) {
-        pending.put(player.getUUID(), new PendingApproval(actionId, description, approved));
+            SafetyLevel safetyLevel, Supplier<ActionResult> approved) {
+        PermissionManager.PermissionState state = permissions.state(player.getUUID());
+        if (!state.level().allows(safetyLevel)) {
+            GemmaBuddy.sendError(player, "Locked by permission level " + state.level().configValue()
+                    + ". Use /gemmabuddy permissions set ask-before-action or a higher safe level.");
+            return ActionResult.failure("Action locked by permission policy.");
+        }
+        if (state.level().allowsWithoutApproval(safetyLevel) || state.autoApprove().contains(safetyLevel)) {
+            return runApproved(player, actionId, description, approved);
+        }
+
+        pending.put(player.getUUID(), new PendingApproval(actionId, description, safetyLevel, approved));
         GemmaBuddy.sendLine(player, "Approval required: " + description
                 + ". Use /gemmabuddy approve or /gemmabuddy deny.");
         return ActionResult.failure("Waiting for player approval.");
+    }
+
+    public ActionResult requestConfirmation(ServerPlayer player, String actionId, String description,
+            Supplier<ActionResult> approved) {
+        pending.put(player.getUUID(), new PendingApproval(actionId, description, SafetyLevel.READ_ONLY, approved));
+        GemmaBuddy.sendLine(player, "Confirmation required: " + description
+                + ". Use /gemmabuddy approve or /gemmabuddy deny.");
+        return ActionResult.failure("Waiting for player confirmation.");
     }
 
     public ActionResult approve(ServerPlayer player) {
@@ -29,13 +54,7 @@ public final class SafetyManager {
             GemmaBuddy.sendLine(player, "There is no pending GemmaBuddy approval.");
             return ActionResult.failure("No pending approval.");
         }
-        ActionResult result = request.approved().get();
-        if (!result.success()) {
-            GemmaBuddy.sendError(player, "Approved action could not start: " + result.message());
-            return result;
-        }
-        GemmaBuddy.sendLine(player, "Approved: " + request.description() + ".");
-        return ActionResult.success("Approved " + request.actionId() + ".");
+        return runApproved(player, request.actionId(), request.description(), request.approved());
     }
 
     public ActionResult deny(ServerPlayer player) {
@@ -48,21 +67,67 @@ public final class SafetyManager {
         return ActionResult.success("Denied " + request.actionId() + ".");
     }
 
-    public void startTask(ServerPlayer player, String description) {
-        activeTasks.put(player.getUUID(), description);
+    private ActionResult runApproved(ServerPlayer player, String actionId, String description,
+            Supplier<ActionResult> approved) {
+        ActionTask task = new ActionTask("task-" + taskSequence.incrementAndGet(), actionId, description,
+                ActionStatus.RUNNING, Instant.now(), "");
+        activeTasks.put(player.getUUID(), task);
+        ActionResult result;
+        try {
+            result = approved.get();
+        } catch (RuntimeException ex) {
+            activeTasks.put(player.getUUID(), task.finish(ActionStatus.FAILED, ex.getClass().getSimpleName()));
+            throw ex;
+        }
+        ActionStatus resultStatus = result.success() && isMovementTask(actionId)
+                ? ActionStatus.RUNNING
+                : result.success() ? ActionStatus.COMPLETED : ActionStatus.FAILED;
+        activeTasks.put(player.getUUID(), task.finish(resultStatus, result.message()));
+        if (!result.success()) {
+            GemmaBuddy.sendError(player, "Approved action could not start: " + result.message());
+            return result;
+        }
+        GemmaBuddy.sendLine(player, "Approved: " + description + ".");
+        return ActionResult.success("Approved " + actionId + ".");
+    }
+
+    public void startTask(ServerPlayer player, String actionId, String description) {
+        activeTasks.put(player.getUUID(), new ActionTask("task-" + taskSequence.incrementAndGet(), actionId,
+                description, ActionStatus.RUNNING, Instant.now(), ""));
+    }
+
+    public void completeTask(ServerPlayer player, String message) {
+        activeTasks.computeIfPresent(player.getUUID(),
+                (id, task) -> task.finish(ActionStatus.COMPLETED, message));
+    }
+
+    private boolean isMovementTask(String actionId) {
+        return "follow".equals(actionId) || "come".equals(actionId) || "return_home".equals(actionId)
+                || "guide_target".equals(actionId);
     }
 
     public void stopAll(ServerPlayer player) {
         pending.remove(player.getUUID());
-        activeTasks.remove(player.getUUID());
+        activeTasks.computeIfPresent(player.getUUID(),
+                (id, task) -> task.finish(ActionStatus.CANCELLED, "Stopped by player"));
     }
 
     public String statusLine(ServerPlayer player) {
+        PermissionManager.PermissionState state = permissions.state(player.getUUID());
         PendingApproval request = pending.get(player.getUUID());
         if (request != null) {
-            return "Pending approval: " + request.description();
+            return "Permissions: " + state.level().configValue() + " | pending: " + request.description();
         }
-        return "Permissions: Read-only; movement requires approval; world changes locked.";
+        ActionTask task = activeTasks.get(player.getUUID());
+        String taskText = task != null && task.status() == ActionStatus.RUNNING
+                ? " | task: " + task.description()
+                : "";
+        return "Permissions: " + state.level().configValue() + " | autoapprove="
+                + state.autoApprove() + taskText + " | destructive actions remain locked.";
+    }
+
+    public PermissionManager permissions() {
+        return permissions;
     }
 
     public boolean worldChangesAllowed() {
@@ -77,6 +142,23 @@ public final class SafetyManager {
         DANGEROUS
     }
 
-    private record PendingApproval(String actionId, String description, Supplier<ActionResult> approved) {
+    public enum ActionStatus {
+        PENDING,
+        RUNNING,
+        COMPLETED,
+        FAILED,
+        CANCELLED
+    }
+
+    public record ActionTask(String taskId, String actionId, String description, ActionStatus status,
+            Instant startedAt, String message) {
+        ActionTask finish(ActionStatus nextStatus, String nextMessage) {
+            return new ActionTask(taskId, actionId, description, nextStatus, startedAt,
+                    nextMessage == null ? "" : nextMessage);
+        }
+    }
+
+    private record PendingApproval(String actionId, String description, SafetyLevel safetyLevel,
+            Supplier<ActionResult> approved) {
     }
 }

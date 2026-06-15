@@ -72,6 +72,23 @@ public final class ContextResolver {
         return "";
     }
 
+    public static ResolvedContext resolveLookedAt(Player player) {
+        Level level = player.level();
+        HitResult hit = player.pick(24.0D, 0.0F, false);
+        if (hit instanceof BlockHitResult blockHit) {
+            BlockPos pos = blockHit.getBlockPos();
+            ResourceLocation id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock());
+            return id == null ? null : new ResolvedContext(id.toString(), "block", pos);
+        }
+        if (hit instanceof EntityHitResult entityHit && entityHit.getEntity() != null) {
+            Entity entity = entityHit.getEntity();
+            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+            return id == null ? null : new ResolvedContext(id.toString(), "entity", entity.blockPosition());
+        }
+        ResourceLocation held = itemId(player.getMainHandItem());
+        return held == null ? null : new ResolvedContext(held.toString(), "held_item", player.blockPosition());
+    }
+
     private static boolean needsContext(String query) {
         return query.contains(" this ")
                 || query.startsWith("this ")
@@ -138,5 +155,8 @@ public final class ContextResolver {
 
     private static String normalize(String text) {
         return text == null ? "" : text.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+    }
+
+    public record ResolvedContext(String registryId, String type, BlockPos position) {
     }
 }

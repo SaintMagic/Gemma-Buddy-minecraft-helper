@@ -24,6 +24,8 @@ public class GemmaBuddyEntity extends PathfinderMob {
     private UUID ownerUuid;
     private BlockPos homePosition;
     private BlockPos movementTarget;
+    private BlockPos lastNavigationPosition = BlockPos.ZERO;
+    private int stuckTicks;
 
     public static AttributeSupplier.Builder createAttributes() {
         return PathfinderMob.createMobAttributes()
@@ -63,20 +65,24 @@ public class GemmaBuddyEntity extends PathfinderMob {
             case COME_TO_PLAYER -> {
                 if (moveTowardPlayer(owner, 2.0D)) {
                     buddyMode = BuddyMode.STAY;
+                    completeMovementTask(owner, "Buddy reached the player.");
                 }
             }
             case RETURN_HOME -> {
                 if (moveToward(homePosition, 1.08D, 2.0D)) {
                     buddyMode = BuddyMode.STAY;
+                    completeMovementTask(owner, "Buddy reached home.");
                 }
             }
             case GUIDING_TO_TARGET -> {
                 if (moveToward(movementTarget, 1.02D, 2.0D)) {
                     buddyMode = BuddyMode.STAY;
+                    completeMovementTask(owner, "Buddy reached the tracked target.");
                 }
             }
             case IDLE, STAY, STOPPED -> this.getNavigation().stop();
         }
+        monitorNavigation(owner);
     }
 
     public BuddyMode buddyMode() {
@@ -160,6 +166,42 @@ public class GemmaBuddyEntity extends PathfinderMob {
         }
         getNavigation().moveTo(target.getX() + 0.5D, target.getY(), target.getZ() + 0.5D, speed);
         return false;
+    }
+
+    private void monitorNavigation(Player owner) {
+        boolean moving = buddyMode == BuddyMode.FOLLOW || buddyMode == BuddyMode.COME_TO_PLAYER
+                || buddyMode == BuddyMode.RETURN_HOME || buddyMode == BuddyMode.GUIDING_TO_TARGET;
+        if (!moving || getNavigation().isDone()) {
+            stuckTicks = 0;
+            lastNavigationPosition = blockPosition();
+            return;
+        }
+        if (tickCount % 20 != 0) {
+            return;
+        }
+        if (blockPosition().distManhattan(lastNavigationPosition) <= 1) {
+            stuckTicks += 20;
+        } else {
+            stuckTicks = 0;
+            lastNavigationPosition = blockPosition();
+        }
+        if (stuckTicks >= 200) {
+            getNavigation().stop();
+            buddyMode = BuddyMode.STAY;
+            stuckTicks = 0;
+            if (owner instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+                GemmaBuddy.safetyManager().completeTask(serverPlayer, "Navigation failed safely.");
+                GemmaBuddy.sendError(serverPlayer,
+                        "I could not find a safe path, so I stopped here at " + blockPosition().toShortString() + ".");
+            }
+        }
+    }
+
+    private void completeMovementTask(Player owner, String message) {
+        if (owner instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+            GemmaBuddy.safetyManager().completeTask(serverPlayer, message);
+            GemmaBuddy.sendLine(serverPlayer, message);
+        }
     }
 
     private static void writePosition(CompoundTag tag, String key, BlockPos pos) {

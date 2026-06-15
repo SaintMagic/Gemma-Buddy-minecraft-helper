@@ -29,10 +29,21 @@ public final class PlannerService {
                 action("scan_nearby_1", "see", "", "Scan loaded nearby area", List.of(), List.of(), "read_only",
                         false, true),
                 action("search_resource_wood_1", "search_for_resource", "minecraft:oak_log",
-                        "Find a nearby wood source", List.of(), List.of("minecraft:oak_log x1"), "read_only", false,
+                        "Find a nearby wood source", List.of(), List.of(), "read_only", false,
                         true),
                 action("search_resource_stone_1", "search_for_resource", "minecraft:stone",
-                        "Find nearby stone", List.of(), List.of("minecraft:stone x1"), "read_only", false, true),
+                        "Find nearby stone", List.of(), List.of(), "read_only", false, true),
+                action("gather_oak_logs_4", "break_block", "minecraft:oak_log", "Gather 4 oak logs", List.of(),
+                        List.of("minecraft:oak_log x4"), "world_change", true, false),
+                action("craft_oak_planks_16", "craft_item", "minecraft:oak_planks", "Craft 16 oak planks",
+                        List.of("minecraft:oak_log x4"), List.of("minecraft:oak_planks x16"), "inventory", true,
+                        false),
+                action("craft_sticks_4", "craft_item", "minecraft:stick", "Craft 4 sticks",
+                        List.of("minecraft:oak_planks x2"), List.of("minecraft:stick x4"), "inventory", true, false),
+                action("craft_wooden_pickaxe_1", "craft_item", "minecraft:wooden_pickaxe",
+                        "Craft a wooden pickaxe",
+                        List.of("minecraft:oak_planks x3", "minecraft:stick x2"),
+                        List.of("minecraft:wooden_pickaxe x1"), "inventory", true, false),
                 action("craft_furnace_1", "craft_item", "minecraft:furnace", "Craft a furnace",
                         List.of("minecraft:cobblestone x8"), List.of("minecraft:furnace x1"), "inventory", true,
                         false),
@@ -81,10 +92,18 @@ public final class PlannerService {
 
         Map<String, Integer> inventory = inventoryCounts(packet.inventory());
         Set<String> priorRefs = new HashSet<>();
+        Set<String> proposedRefs = new HashSet<>();
+        Map<String, String> priorStatuses = new HashMap<>();
         List<ValidatedStep> validated = new ArrayList<>();
         List<String> warnings = new ArrayList<>(proposal.warnings());
 
         for (ProposedStep proposed : proposal.proposedSteps()) {
+            if (!proposedRefs.add(proposed.actionRef())) {
+                validated.add(new ValidatedStep(proposed.actionRef(), "duplicate", "blocked",
+                        "Duplicate action_ref in proposal.", true, List.of()));
+                warnings.add("Rejected duplicate proposed action_ref " + proposed.actionRef() + ".");
+                continue;
+            }
             AvailableAction action = availableByRef.get(proposed.actionRef());
             if (action == null) {
                 validated.add(new ValidatedStep(proposed.actionRef(), "unknown", "blocked",
@@ -96,11 +115,24 @@ public final class PlannerService {
             List<String> missing = missingRequirements(action, inventory);
             String status = "ready";
             String reason = proposed.reason();
-            if (!proposed.dependsOnActionRef().isBlank() && !priorRefs.contains(proposed.dependsOnActionRef())) {
-                status = "blocked";
-                reason = "Dependency is not an earlier validated step.";
+            if (!proposed.dependsOnActionRef().isBlank()) {
+                if (!priorRefs.contains(proposed.dependsOnActionRef())) {
+                    status = "blocked";
+                    reason = "Dependency is not an earlier validated step.";
+                } else if ("blocked".equals(priorStatuses.get(proposed.dependsOnActionRef()))) {
+                    status = "blocked";
+                    reason = "Required previous step is blocked.";
+                } else if (!missing.isEmpty()) {
+                    status = "blocked";
+                    reason = "Even after the previous step, missing " + String.join(", ", missing) + ".";
+                } else {
+                    status = "requires_previous_step";
+                    reason = proposed.reason().isBlank()
+                            ? "Requires completion of " + proposed.dependsOnActionRef() + "."
+                            : proposed.reason();
+                }
             } else if (!missing.isEmpty()) {
-                status = proposed.dependsOnActionRef().isBlank() ? "blocked" : "requires_previous_step";
+                status = "blocked";
                 reason = "Missing " + String.join(", ", missing) + ".";
             } else if (!action.allowedNow()) {
                 status = action.approvalRequired() ? "conditional" : "blocked";
@@ -127,6 +159,10 @@ public final class PlannerService {
             validated.add(new ValidatedStep(action.actionRef(), action.label(), status, reason,
                     action.approvalRequired(), missing));
             priorRefs.add(action.actionRef());
+            priorStatuses.put(action.actionRef(), status);
+            if (!"blocked".equals(status)) {
+                applyProducedItems(inventory, action.produces());
+            }
         }
 
         double confidence = proposal.confidence();
@@ -202,6 +238,19 @@ public final class PlannerService {
             }
         }
         return missing;
+    }
+
+    private static void applyProducedItems(Map<String, Integer> inventory, List<String> produced) {
+        for (String output : produced) {
+            String[] parts = output.split(" x");
+            if (parts.length != 2 || parts[0].startsWith("#")) {
+                continue;
+            }
+            int count = parseInt(parts[1], 0);
+            if (count > 0) {
+                inventory.merge(parts[0], count, Integer::sum);
+            }
+        }
     }
 
     private static int countMatching(Map<String, Integer> inventory, String token) {

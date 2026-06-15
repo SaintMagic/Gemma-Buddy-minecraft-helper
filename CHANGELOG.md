@@ -13,3 +13,9 @@
 - Added action registry and planner self-checks.
 - Polished the G UI action coverage, status strip, focus handling, and action scrolling.
 - Added public setup, privacy, troubleshooting, and CI documentation.
+- Added persistent per-player permission levels and safe movement autoapproval.
+- Added coordinate-aware target tracking, buddy guidance, and open-container memory scans.
+- Added the craftable GemmaBuddy Console with compact field UI and shared action routing.
+- Added structured plan-only skill definitions for shelter, starter tools, enchanting, and next-step organization.
+- Added JSON documentation cards with machine, progression, creative-tab, and evidence metadata.
+- Added tag-triggered GitHub release workflow.

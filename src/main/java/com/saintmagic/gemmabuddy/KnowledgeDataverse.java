@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -18,6 +19,10 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 
 import net.minecraft.core.Holder;
@@ -43,6 +48,7 @@ import net.neoforged.fml.ModList;
  */
 public final class KnowledgeDataverse implements KnowledgeRepository {
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final KnowledgeIndex knowledgeIndex;
     private final Path docsRoot;
@@ -635,6 +641,12 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
         if (!doc.tags().isEmpty()) {
             lines.add("Tags: " + joinWithAnd(limit(doc.tags(), 4)) + ".");
         }
+        if (!doc.machineInteractions().isEmpty()) {
+            lines.add("Machine interactions: " + joinWithAnd(limit(doc.machineInteractions(), 4)) + ".");
+        }
+        if (!doc.progressionHints().isEmpty()) {
+            lines.add("Progression evidence: " + joinWithAnd(limit(doc.progressionHints(), 3)) + ".");
+        }
         if (!hints.isEmpty() && usages.isEmpty()) {
             lines.add("Notes: " + joinWithAnd(limit(hints, 5)) + ".");
         }
@@ -652,6 +664,12 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
         }
         if (!doc.tags().isEmpty()) {
             lines.add("Tags: " + joinWithAnd(limit(doc.tags(), 4)) + ".");
+        }
+        if (!doc.machineInteractions().isEmpty()) {
+            lines.add("Machine interactions: " + joinWithAnd(limit(doc.machineInteractions(), 4)) + ".");
+        }
+        if (!doc.progressionHints().isEmpty()) {
+            lines.add("Progression evidence: " + joinWithAnd(limit(doc.progressionHints(), 3)) + ".");
         }
         List<String> hints = vanillaHintsFor(entry);
         if (!hints.isEmpty()) {
@@ -674,12 +692,30 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
                 relatedEntries.add(ingredient.label());
             }
         });
+        ModKnowledgeReport report = knowledgeIndex.allReportsSnapshot().stream()
+                .filter(value -> value.modId().equals(entry.modId()))
+                .findFirst()
+                .orElse(null);
+        List<String> progressionHints = report == null ? List.of() : report.advancementIds().stream()
+                .filter(id -> normalizeKey(id).contains(normalizeKey(entry.registryIdPath())))
+                .limit(8)
+                .toList();
+        List<String> creativeTabs = report == null ? List.of() : limit(report.creativeTabHints(), 8);
+        List<String> machineInteractions = usages.stream()
+                .filter(recipe -> !recipe.kind().contains("shaped") && !recipe.kind().contains("shapeless"))
+                .map(recipe -> recipe.kind() + " -> " + recipe.outputName())
+                .distinct()
+                .limit(8)
+                .toList();
         return new DocumentationCard(
                 entry,
                 outputRecipes.stream().findFirst().orElse(null),
                 usageOutputs,
                 data.tagsByEntry.getOrDefault(entry.registryId(), List.of()),
                 relatedEntries.stream().distinct().sorted().toList(),
+                progressionHints,
+                creativeTabs,
+                machineInteractions,
                 data);
     }
 
@@ -687,6 +723,8 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
         try {
             Files.createDirectories(docsRoot.resolve(doc.entry().modId()));
             Path target = docsRoot.resolve(doc.entry().modId()).resolve(doc.entry().registryIdPath() + ".md");
+            Path jsonTarget = docsRoot.resolve(doc.entry().modId()).resolve(doc.entry().registryIdPath() + ".json");
+            String generatedAt = Instant.now().toString();
             List<String> lines = new ArrayList<>();
             lines.add("# " + doc.entry().displayName());
             lines.add("");
@@ -705,16 +743,78 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
             if (!doc.relatedEntries().isEmpty()) {
                 lines.add("- Related: " + joinWithAnd(limit(doc.relatedEntries(), 8)));
             }
+            if (!doc.machineInteractions().isEmpty()) {
+                lines.add("- Machine/recipe interactions: " + joinWithAnd(doc.machineInteractions()));
+            }
+            if (!doc.progressionHints().isEmpty()) {
+                lines.add("- Progression hints: " + joinWithAnd(doc.progressionHints()));
+            }
+            if (!doc.creativeTabs().isEmpty()) {
+                lines.add("- Creative tabs: " + joinWithAnd(doc.creativeTabs()));
+            }
             List<String> hints = vanillaHintsFor(doc.entry());
             if (!hints.isEmpty()) {
                 lines.add("- Notes: " + joinWithAnd(limit(hints, 6)));
             }
             lines.add("- Evidence: registries, recipes, tags, local mod reports");
+            lines.add("- Generated: " + generatedAt);
             Files.write(target, lines, StandardCharsets.UTF_8);
+            Files.writeString(jsonTarget, GSON.toJson(documentationJson(doc, generatedAt)), StandardCharsets.UTF_8);
         } catch (IOException ex) {
             LOGGER.warn("Failed to write GemmaBuddy documentation card for {}: {}", doc.entry().registryId(),
                     ex.toString());
         }
+    }
+
+    private JsonObject documentationJson(DocumentationCard doc, String generatedAt) {
+        JsonObject root = new JsonObject();
+        root.addProperty("registryId", doc.entry().registryId());
+        root.addProperty("displayName", doc.entry().displayName());
+        root.addProperty("namespace", doc.entry().modId());
+        root.addProperty("modName", doc.entry().modName());
+        root.addProperty("type", doc.entry().typeSummary());
+        root.addProperty("generatedAt", generatedAt);
+        root.add("tags", jsonArray(doc.tags()));
+        root.add("usageOutputs", jsonArray(doc.usageOutputs()));
+        root.add("relatedEntries", jsonArray(doc.relatedEntries()));
+        root.add("machineInteractions", jsonArray(doc.machineInteractions()));
+        root.add("progressionHints", jsonArray(doc.progressionHints()));
+        root.add("creativeTabs", jsonArray(doc.creativeTabs()));
+        root.add("behaviorHints", jsonArray(vanillaHintsFor(doc.entry())));
+        root.add("evidence", jsonArray(List.of("registry", "recipes", "tags", "local_mod_reports")));
+        if (doc.recipe() != null) {
+            JsonObject recipe = new JsonObject();
+            recipe.addProperty("recipeId", doc.recipe().recipeId());
+            recipe.addProperty("sourceMod", namespaceOf(doc.recipe().recipeId()));
+            recipe.addProperty("type", doc.recipe().kind());
+            recipe.addProperty("outputId", doc.recipe().outputId());
+            recipe.addProperty("outputCount", doc.recipe().outputCount());
+            recipe.addProperty("width", doc.recipe().width());
+            recipe.addProperty("height", doc.recipe().height());
+            recipe.addProperty("layout", doc.recipe().layoutSummary());
+            JsonArray ingredients = new JsonArray();
+            for (IngredientCount ingredient : doc.recipe().ingredients()) {
+                JsonObject value = new JsonObject();
+                value.addProperty("label", ingredient.label());
+                value.addProperty("count", ingredient.count());
+                value.add("acceptedRegistryIds", jsonArray(ingredient.itemIds()));
+                ingredients.add(value);
+            }
+            recipe.add("ingredients", ingredients);
+            root.add("primaryRecipe", recipe);
+        }
+        return root;
+    }
+
+    private JsonArray jsonArray(List<String> values) {
+        JsonArray array = new JsonArray();
+        values.forEach(array::add);
+        return array;
+    }
+
+    private String namespaceOf(String registryId) {
+        int split = registryId == null ? -1 : registryId.indexOf(':');
+        return split > 0 ? registryId.substring(0, split) : "minecraft";
     }
 
     private Intent detectIntent(String query) {
@@ -1122,6 +1222,9 @@ public final class KnowledgeDataverse implements KnowledgeRepository {
             List<String> usageOutputs,
             List<String> tags,
             List<String> relatedEntries,
+            List<String> progressionHints,
+            List<String> creativeTabs,
+            List<String> machineInteractions,
             DataverseSnapshot snapshot) {
     }
 

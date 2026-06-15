@@ -18,21 +18,25 @@ Updated for the local companion alpha pass.
 - Approval/deny/stop safety plumbing.
 - Passive follow/stay/come/return-home movement modes.
 - Fair inventory/loaded-area/memory find without chunk loading.
+- Persistent permission levels, safe movement autoapproval, and tracked action-task status.
+- Coordinate-aware tracking, open-container scans, and buddy guidance to known same-dimension targets.
+- Craftable GemmaBuddy Console with compact recent-history/quick-action UI.
+- Plan-only SkillRegistry for shelter, starter tools, enchanting setup, and next-step organization.
+- Markdown and JSON documentation cards with machine/progression evidence where locally discoverable.
 
 ## Partial Alpha
 
 - Grounded Q&A: deterministic recipes/usages work; inventory-aware craftability and broader evidence coverage are being expanded.
 - Planning: strict proposal parsing and validation work; the available-action catalog is intentionally small and plan-only.
 - Grounded Q&A: exact local recipes/usages/craftability work, but guidebook, quest, loot, and machine evidence coverage is incomplete.
-- Safety: approval plumbing works; granular per-player permission profiles and durable task queues remain partial.
+- Safety: persistent permission profiles and action-task state work; world-changing execution remains intentionally locked.
 - Buddy movement: explicit modes work, but advanced path recovery and cross-dimension travel are locked.
-- Fair Find: inventory, drops, entities, loaded blocks, and memory work; container observation is not implemented.
+- Fair Find: inventory, drops, entities, loaded blocks, remembered open-container contents, and memory work.
 
 ## Locked / Plan-Only
 
 - Mining, breaking, placing, attacking, hunting, looting, inventory manipulation, and autonomous building.
 - Whole-world or unloaded-chunk search.
-- Tablet/mini console until the shared action and find systems are stable.
 - Building skills execute as plans only.
 - Voice cannot bypass routing, safety, or approvals.
 

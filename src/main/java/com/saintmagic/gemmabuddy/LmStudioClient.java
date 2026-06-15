@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -20,6 +21,8 @@ import com.google.gson.JsonParser;
 public final class LmStudioClient {
     private final GemmaBuddyConfig config;
     private final HttpClient client;
+    private final AtomicReference<ConnectionStatus> connectionStatus = new AtomicReference<>(ConnectionStatus.UNKNOWN);
+    private volatile String lastError = "";
 
     public LmStudioClient(GemmaBuddyConfig config) {
         this.config = config;
@@ -52,12 +55,28 @@ public final class LmStudioClient {
             boolean jsonMode) throws IOException, InterruptedException {
         boolean thinkingEnabled = shouldEnableThinking(profile);
         try {
-            return send(systemPrompt, userPrompt, profile, maxTokens, jsonMode, thinkingEnabled);
+            LmStudioResponse response = send(systemPrompt, userPrompt, profile, maxTokens, jsonMode, thinkingEnabled);
+            connectionStatus.set(ConnectionStatus.READY);
+            lastError = "";
+            return response;
         } catch (java.net.http.HttpTimeoutException ex) {
             if (thinkingEnabled && config.retryWithoutThinkingOnTimeout()) {
-                return send(systemPrompt + "\nThinking is disabled. Give the final answer immediately.",
-                        userPrompt, profile, maxTokens, jsonMode, false);
+                try {
+                    LmStudioResponse response = send(
+                            systemPrompt + "\nThinking is disabled. Give the final answer immediately.",
+                            userPrompt, profile, maxTokens, jsonMode, false);
+                    connectionStatus.set(ConnectionStatus.READY);
+                    lastError = "";
+                    return response;
+                } catch (IOException | InterruptedException retryFailure) {
+                    markError(retryFailure);
+                    throw retryFailure;
+                }
             }
+            markError(ex);
+            throw ex;
+        } catch (IOException | InterruptedException ex) {
+            markError(ex);
             throw ex;
         }
     }
@@ -130,6 +149,19 @@ public final class LmStudioClient {
         return cleaned.trim();
     }
 
+    public String connectionStatusLine() {
+        return switch (connectionStatus.get()) {
+            case READY -> "Ready";
+            case ERROR -> "Error" + (lastError.isBlank() ? "" : ": " + abbreviate(lastError));
+            case UNKNOWN -> "Not tested";
+        };
+    }
+
+    private void markError(Exception ex) {
+        connectionStatus.set(ConnectionStatus.ERROR);
+        lastError = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+    }
+
     private boolean shouldEnableThinking(RequestProfile profile) {
         return switch (config.thinkingMode()) {
             case OFF -> false;
@@ -187,6 +219,12 @@ public final class LmStudioClient {
                 default -> NORMAL_QA;
             };
         }
+    }
+
+    private enum ConnectionStatus {
+        UNKNOWN,
+        READY,
+        ERROR
     }
 
     public record LmStudioResponse(String content, String reasoningContent, String rawBody) {
