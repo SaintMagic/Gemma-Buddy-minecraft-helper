@@ -36,6 +36,7 @@ public final class ActionRegistry {
     public static final String BUDDY = "Buddy / Entity";
     public static final String PLANNING = "AI / Planning";
     public static final String FIND = "Find";
+    public static final String WORK = "Work Orders";
     public static final String DEBUG = "Debug / Maintenance";
 
     private final Map<String, ActionDefinition> actionsById = new LinkedHashMap<>();
@@ -125,7 +126,7 @@ public final class ActionRegistry {
                 "Show the exact local recipe for a target when recipe data is available.",
                 false, true, InputMode.TARGET_INPUT, "item / block / output",
                 List.of("how do i craft", "how do i make", "recipe for", "can i craft", "can we craft",
-                        "can you craft", "craft"),
+                        "can you craft"),
                 List.of("recipe <query>"), this::recipeLookupAction));
 
         register(action("usage_lookup", KNOWLEDGE, "Uses for target",
@@ -248,6 +249,24 @@ public final class ActionRegistry {
                 false, false, InputMode.NONE, null, List.of("recent plans", "show plans"), List.of("plans"),
                 this::recentPlansAction));
 
+        register(action("progress", PLANNING, "Progression path",
+                "Show deterministic recipe, missing materials, known sources, and next action.",
+                false, true, InputMode.TARGET_INPUT, "target",
+                List.of("progress", "path to", "how do i get", "what am i missing for",
+                        "what should i gather next for"),
+                List.of("progress <target>", "path <target>", "missing <target>"),
+                this::progressAction));
+
+        register(action("craftable_now", PLANNING, "What can I craft now?",
+                "List a compact deterministic sample of recipes currently craftable from inventory.",
+                false, false, InputMode.NONE, null, List.of("what can i craft now", "craftable"),
+                List.of("craftable"), this::craftableNowAction));
+
+        register(action("progress_next", PLANNING, "Next progression step",
+                "Analyze the active goal and recommend the next evidence-backed step.",
+                false, false, InputMode.NONE, null, List.of("next step", "what should i gather next"),
+                List.of("next"), this::progressNextAction));
+
         register(action("find", FIND, "Find target",
                 "Search inventory, nearby loaded area, and remembered discoveries without loading chunks.",
                 false, true, InputMode.TARGET_INPUT, "item / block / entity", List.of("find"),
@@ -316,6 +335,71 @@ public final class ActionRegistry {
                 false, false, InputMode.NONE, null, List.of("track target", "tracking status"),
                 List.of("track status"), this::trackStatusAction));
 
+        register(action("work_create", WORK, "Create Work Order",
+                "Plan a small bounded assisted mining, gathering, building, crafting, or goal task.",
+                false, true, InputMode.MAIN_INPUT, "mine 8 stone",
+                List.of("work", "do", "mine", "gather", "build a basic shelter", "build basic shelter", "build shelter",
+                        "craft", "make", "prepare starter tools", "prepare enchanting setup",
+                        "prepare camp", "prepare survival setup", "follow current goal",
+                        "work on goal", "work on current goal", "work on enchanting table", "work toward"),
+                List.of("work <request>"), SafetyManager.SafetyLevel.WORLD_CHANGE, true, true, "New Work",
+                this::workCreateAction));
+
+        register(action("work_status", WORK, "Work status",
+                "Show current Work Order scope, status, steps, budget, and warnings.",
+                false, false, InputMode.NONE, null, List.of("work status", "current work"),
+                List.of("work status"), this::workStatusAction));
+
+        register(action("work_cancel", WORK, "Cancel work",
+                "Cancel the current Work Order immediately.",
+                false, false, InputMode.NONE, null, List.of("stop work", "cancel work", "work cancel"),
+                List.of("work cancel"), this::workCancelAction));
+
+        register(action("work_approve", WORK, "Approve work",
+                "Approve the entire exact bounded Work Order scope once.",
+                false, false, InputMode.NONE, null, List.of("work approve"),
+                List.of("work approve"), this::workApproveAction));
+
+        register(action("work_deny", WORK, "Deny work",
+                "Deny and cancel the pending Work Order.",
+                false, false, InputMode.NONE, null, List.of("work deny"),
+                List.of("work deny"), this::workDenyAction));
+
+        register(action("work_pause", WORK, "Pause work",
+                "Pause the current supervised Work Order.",
+                false, false, InputMode.NONE, null, List.of("pause work", "work pause"),
+                List.of("work pause"), this::workPauseAction));
+
+        register(action("work_resume", WORK, "Resume work",
+                "Resume a paused Work Order inside its original approved scope.",
+                false, false, InputMode.NONE, null, List.of("resume work", "work resume"),
+                List.of("work resume"), this::workResumeAction));
+
+        register(action("work_next", WORK, "Run next assisted step",
+                "Advance the current assisted Work Order without expanding its scope.",
+                false, false, InputMode.NONE, null, List.of("do next step", "work next"),
+                List.of("work next"), this::workNextAction));
+
+        register(action("autonomy_status", WORK, "Autonomy status",
+                "Show autonomy mode and low-annoyance approval/reporting policy.",
+                false, false, InputMode.NONE, null, List.of("autonomy status"),
+                List.of("autonomy status"), this::autonomyStatusAction));
+
+        register(action("autonomy_set", WORK, "Set autonomy mode",
+                "Set manual, assisted, approved batch, safe auto, or read only.",
+                false, true, InputMode.TARGET_INPUT, "manual / assisted / approved batch",
+                List.of("autonomy"), List.of("autonomy <target>"), this::autonomySetAction));
+
+        register(action("work_quiet", WORK, "Less chatty",
+                "Use milestone-only Work Order updates.",
+                false, false, InputMode.NONE, null, List.of("be quiet", "less chatty"),
+                List.of(), this::workQuietAction));
+
+        register(action("work_chatty", WORK, "More chatty",
+                "Allow additional Work Order progress updates without narrating micro-actions.",
+                false, false, InputMode.NONE, null, List.of("more chatty"),
+                List.of(), this::workChattyAction));
+
         register(action("memory_clear", DEBUG, "Clear local memory",
                 "Clear notes, goals, home, discoveries, and tracking after explicit approval.",
                 false, false, InputMode.NONE, null, List.of("clear memory"), List.of("memory clear"),
@@ -381,10 +465,20 @@ public final class ActionRegistry {
                 false, false, InputMode.NONE, null, List.of("selfcheck"), List.of("selfcheck"),
                 this::selfCheckAction));
 
+        register(action("test_run", DEBUG, "Run regression tests",
+                "Run all or one categorized local regression suite and write JSON/Markdown reports.",
+                false, false, InputMode.TARGET_INPUT, "all / parser / knowledge / planner / find / workorders / safety",
+                List.of("test run"), List.of("test run", "test run <target>"), this::testRunAction));
+
+        register(action("test_report", DEBUG, "Test report",
+                "Show the latest regression report summary and file path.",
+                false, false, InputMode.NONE, null, List.of("test report"), List.of("test report"),
+                this::testReportAction));
+
         register(action("skill_shelter_plan", PLANNING, "Plan basic shelter",
                 "Plan-only starter shelter skill; it never places blocks.",
                 false, false, InputMode.NONE, null,
-                List.of("plan basic shelter", "skill shelter", "build basic shelter"), List.of(),
+                List.of("plan basic shelter", "skill shelter"), List.of(),
                 SafetyManager.SafetyLevel.WORLD_CHANGE, true, true, "Shelter",
                 context -> skillPlanAction(context, "build_basic_shelter")));
 
@@ -438,6 +532,14 @@ public final class ActionRegistry {
         String canonical = canonicalize(normalized);
         if (canonical.isBlank()) {
             return Optional.empty();
+        }
+
+        if (canonical.startsWith("what is ") && canonical.endsWith(" used for")) {
+            String argument = canonical.substring("what is ".length(),
+                    canonical.length() - " used for".length()).trim();
+            ActionDefinition usage = actionsById.get("usage_lookup");
+            return usage == null ? Optional.empty()
+                    : Optional.of(new ResolvedAction(usage, argument, "what is <target> used for"));
         }
 
         if (canonical.startsWith("action ")) {
@@ -956,6 +1058,114 @@ public final class ActionRegistry {
         return ActionResult.success("Recent plans shown.");
     }
 
+    private ActionResult progressAction(ActionContext context) {
+        String target = firstNonBlank(context.argument(), context.normalizedInput());
+        ProgressionBrain.ProgressionReport report = context.progression().analyze(context.player(), target);
+        context.progression().playerLines(report).forEach(line -> GemmaBuddy.sendLine(context.player(), line));
+        return report.error().isBlank()
+                ? ActionResult.success("Progression path shown.")
+                : ActionResult.failure(report.error());
+    }
+
+    private ActionResult craftableNowAction(ActionContext context) {
+        List<String> craftable = context.progression().craftableNow(context.player(), 8);
+        GemmaBuddy.sendLine(context.player(), craftable.isEmpty()
+                ? "I found no exact indexed recipes craftable from the current inventory."
+                : "Craftable now: " + String.join(", ", craftable) + ".");
+        return ActionResult.success("Craftable recipe scan complete.");
+    }
+
+    private ActionResult progressNextAction(ActionContext context) {
+        String goal = firstNonBlank(context.memory().currentGoal(), context.goals().statusLine());
+        ProgressionBrain.ProgressionReport report = context.progression().analyze(context.player(), goal);
+        if (!report.error().isBlank()) {
+            GemmaBuddy.sendError(context.player(), report.error());
+            return ActionResult.failure(report.error());
+        }
+        GemmaBuddy.sendLine(context.player(), "Next: " + report.nextRecommendedAction());
+        return ActionResult.success("Next progression step shown.");
+    }
+
+    private ActionResult workCreateAction(ActionContext context) {
+        String request = "action".equals(context.matchedAlias())
+                ? context.argument()
+                : firstNonBlank(context.normalizedInput(), context.argument());
+        return context.workOrders().create(context.player(), request);
+    }
+
+    private ActionResult workStatusAction(ActionContext context) {
+        return context.workOrders().status(context.player());
+    }
+
+    private ActionResult workCancelAction(ActionContext context) {
+        context.safety().stopAll(context.player());
+        return context.workOrders().cancel(context.player(), "Stopped by player.");
+    }
+
+    private ActionResult workApproveAction(ActionContext context) {
+        return context.workOrders().approve(context.player());
+    }
+
+    private ActionResult workDenyAction(ActionContext context) {
+        return context.workOrders().deny(context.player());
+    }
+
+    private ActionResult workPauseAction(ActionContext context) {
+        return context.workOrders().pause(context.player());
+    }
+
+    private ActionResult workResumeAction(ActionContext context) {
+        return context.workOrders().resume(context.player());
+    }
+
+    private ActionResult workNextAction(ActionContext context) {
+        return context.workOrders().nextStep(context.player());
+    }
+
+    private ActionResult autonomyStatusAction(ActionContext context) {
+        GemmaBuddyConfig config = GemmaBuddy.config();
+        GemmaBuddy.sendLine(context.player(), "Autonomy: " + config.autonomyMode().configValue()
+                + "; approval=" + config.approvalScopeDefault()
+                + "; askEveryStep=" + config.askEveryStep()
+                + "; milestoneOnly=" + config.reportOnlyOnMilestones() + ".");
+        GemmaBuddy.sendLine(context.player(), "Mining/building automation: disabled; Work Orders are assisted.");
+        return ActionResult.success("Autonomy status shown.");
+    }
+
+    private ActionResult autonomySetAction(ActionContext context) {
+        String raw = canonicalize(context.argument()).replace(' ', '_');
+        GemmaBuddyConfig.AutonomyMode mode = GemmaBuddyConfig.AutonomyMode.parse(raw);
+        if (!List.of("manual", "assisted", "approved_batch", "safe_auto", "read_only").contains(raw)) {
+            GemmaBuddy.sendError(context.player(),
+                    "Use: manual, assisted, approved batch, safe auto, or read only.");
+            return ActionResult.failure("Unknown autonomy mode.");
+        }
+        GemmaBuddy.config().setAutonomyMode(mode);
+        GemmaBuddy.sendLine(context.player(), "Autonomy set to " + mode.configValue()
+                + ". Mining/building remain assisted until safe execution is implemented.");
+        return ActionResult.success("Autonomy mode saved.");
+    }
+
+    private ActionResult workQuietAction(ActionContext context) {
+        GemmaBuddy.config().setSilentDuringWork(true);
+        GemmaBuddy.sendLine(context.player(), "Work Orders will report milestones only.");
+        return ActionResult.success("Less-chatty mode enabled.");
+    }
+
+    private ActionResult workChattyAction(ActionContext context) {
+        GemmaBuddy.config().setSilentDuringWork(false);
+        GemmaBuddy.sendLine(context.player(), "Work Orders may report periodic progress, but not micro-actions.");
+        return ActionResult.success("More-chatty mode enabled.");
+    }
+
+    private ActionResult testRunAction(ActionContext context) {
+        return context.tests().run(context, context.argument());
+    }
+
+    private ActionResult testReportAction(ActionContext context) {
+        return context.tests().report(context);
+    }
+
     private ActionResult findAction(ActionContext context) {
         String query = firstNonBlank(context.argument(), context.normalizedInput());
         if (query.isBlank()) {
@@ -1061,6 +1271,7 @@ public final class ActionRegistry {
 
     private ActionResult stopAction(ActionContext context) {
         context.safety().stopAll(context.player());
+        context.workOrders().cancel(context.player(), "Stopped by player.");
         context.memory().clearTrackedTarget();
         GemmaBuddyEntity buddy = GemmaBuddy.nearestBuddy(context.player());
         if (buddy != null) {
@@ -1076,7 +1287,12 @@ public final class ActionRegistry {
     }
 
     private ActionResult denyAction(ActionContext context) {
-        return context.safety().deny(context.player());
+        ActionResult result = context.safety().deny(context.player());
+        WorkOrder order = context.workOrders().current(context.player().getUUID());
+        if (order != null && order.status() == WorkOrder.WorkOrderStatus.WAITING_FOR_APPROVAL) {
+            context.workOrders().cancel(context.player(), "Approval denied.");
+        }
+        return result;
     }
 
     private ActionResult permissionsAction(ActionContext context) {
@@ -1363,8 +1579,17 @@ public final class ActionRegistry {
             failures.add("thinking-off compatibility fields");
         }
         if (!resolvesTo("skill shelter", "skill_shelter_plan")
-                || !resolvesTo("build basic shelter", "skill_shelter_plan")) {
+                || !resolvesTo("build basic shelter", "work_create")) {
             failures.add("shelter skill aliases");
+        }
+        if (!resolvesTo("mine 8 stone", "work_create")
+                || !resolvesTo("gather 6 spruce logs", "work_create")
+                || findById("work_status").isEmpty()) {
+            failures.add("work order routing");
+        }
+        if (GemmaBuddy.config().askEveryStep()
+                || !"per_task".equals(GemmaBuddy.config().approvalScopeDefault())) {
+            failures.add("low-annoyance trust defaults");
         }
         if (!resolvesTo("home set", "mark_home") || !resolvesTo("set home", "mark_home")
                 || !resolvesTo("mark home", "mark_home")) {

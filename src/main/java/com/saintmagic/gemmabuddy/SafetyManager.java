@@ -42,6 +42,26 @@ public final class SafetyManager {
         return ActionResult.failure("Waiting for player approval.");
     }
 
+    /**
+     * Work Orders always use one explicit approval for the complete bounded
+     * scope. Legacy per-category autoapproval must not turn into open-ended
+     * world autonomy.
+     */
+    public ActionResult requestBoundedApproval(ServerPlayer player, String actionId, String description,
+            SafetyLevel safetyLevel, Supplier<ActionResult> approved) {
+        PermissionManager.PermissionState state = permissions.state(player.getUUID());
+        if (!state.level().allows(safetyLevel)) {
+            GemmaBuddy.sendError(player, "This Work Order is locked by the current permission level. "
+                    + "Use ask-before-action or a higher supervised permission.");
+            return ActionResult.failure("Work Order locked by permission policy.");
+        }
+        pending.put(player.getUUID(), new PendingApproval(actionId, description, safetyLevel, approved,
+                Instant.now().plusSeconds(APPROVAL_TIMEOUT_SECONDS)));
+        GemmaBuddy.sendLine(player, "Approval required once for this Work Order: " + description
+                + ". Use /gemmabuddy approve or /gemmabuddy deny.");
+        return ActionResult.failure("Waiting for one bounded Work Order approval.");
+    }
+
     public ActionResult requestConfirmation(ServerPlayer player, String actionId, String description,
             Supplier<ActionResult> approved) {
         pending.put(player.getUUID(), new PendingApproval(actionId, description, SafetyLevel.READ_ONLY, approved,
@@ -189,6 +209,7 @@ public final class SafetyManager {
             case "come" -> "GemmaBuddy will move to the player.";
             case "return_home" -> "GemmaBuddy will navigate to the marked home.";
             case "guide_target" -> "GemmaBuddy will navigate toward the tracked world target.";
+            case "work_order" -> "The exact saved scope will run in supervised assisted mode.";
             case "memory_clear" -> "GemmaBuddy local memory will be cleared.";
             default -> "The requested action will run once.";
         };

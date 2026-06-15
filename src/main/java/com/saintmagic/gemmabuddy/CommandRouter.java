@@ -30,11 +30,15 @@ public final class CommandRouter {
     private final FindService find;
     private final PlannerService planner;
     private final SkillRegistry skills;
+    private final ProgressionBrain progression;
+    private final WorkOrderService workOrders;
+    private final RegressionTestService tests;
     private final LmStudioClient llm;
 
     public CommandRouter(ActionRegistry actions, GoalManager goals, KnowledgeIndex knowledge,
             KnowledgeRepository repository, MemoryManager memory, SafetyManager safety, FindService find,
-            PlannerService planner, SkillRegistry skills, LmStudioClient llm) {
+            PlannerService planner, SkillRegistry skills, ProgressionBrain progression, WorkOrderService workOrders,
+            RegressionTestService tests, LmStudioClient llm) {
         this.actions = actions;
         this.goals = goals;
         this.knowledge = knowledge;
@@ -44,6 +48,9 @@ public final class CommandRouter {
         this.find = find;
         this.planner = planner;
         this.skills = skills;
+        this.progression = progression;
+        this.workOrders = workOrders;
+        this.tests = tests;
         this.llm = llm;
     }
 
@@ -111,6 +118,9 @@ public final class CommandRouter {
                 find,
                 planner,
                 skills,
+                progression,
+                workOrders,
+                tests,
                 llm);
 
         LOGGER.info("GemmaBuddy action resolved id='{}' alias='{}' argument='{}' input='{}'",
@@ -142,6 +152,9 @@ public final class CommandRouter {
                     find,
                     planner,
                     skills,
+                    progression,
+                    workOrders,
+                    tests,
                     llm);
             ActionResult result = actions.execute(context, definition.id());
             return result.success() ? 1 : 0;

@@ -135,9 +135,7 @@ public final class PermissionManager {
         public boolean allows(SafetyManager.SafetyLevel level) {
             return switch (level) {
                 case READ_ONLY -> true;
-                case SAFE_MOVEMENT -> rank >= ASK_BEFORE_ACTION.rank;
-                case INVENTORY -> rank >= INVENTORY_ACTIONS_ALLOWED.rank;
-                case WORLD_CHANGE -> rank >= BLOCK_BREAKING_ALLOWED.rank;
+                case SAFE_MOVEMENT, INVENTORY, WORLD_CHANGE -> rank >= ASK_BEFORE_ACTION.rank;
                 case DANGEROUS -> false;
             };
         }

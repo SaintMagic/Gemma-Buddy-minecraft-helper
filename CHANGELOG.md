@@ -19,3 +19,8 @@
 - Added structured plan-only skill definitions for shelter, starter tools, enchanting, and next-step organization.
 - Added JSON documentation cards with machine, progression, creative-tab, and evidence metadata.
 - Added tag-triggered GitHub release workflow.
+- Added deterministic Progression Brain commands for recipes, missing materials, known sources, and next steps.
+- Added persistent supervised Work Orders for assisted mining, gathering, shelter building, crafting, and current goals.
+- Added a one-approval-per-bounded-task trust contract with budgets, pause/resume/stop, interruption limits, and quiet milestone reporting.
+- Added Work Order controls/status to the full and mini consoles plus a dedicated settings page.
+- Added categorized in-game regression tests and local JSON/Markdown reports.

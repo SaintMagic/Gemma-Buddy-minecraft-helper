@@ -24,5 +24,8 @@ public record ActionContext(
         FindService find,
         PlannerService planner,
         SkillRegistry skills,
+        ProgressionBrain progression,
+        WorkOrderService workOrders,
+        RegressionTestService tests,
         LmStudioClient llm) {
 }

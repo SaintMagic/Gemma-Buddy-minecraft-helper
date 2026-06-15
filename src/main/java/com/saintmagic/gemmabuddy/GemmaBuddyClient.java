@@ -99,6 +99,13 @@ public final class GemmaBuddyClient {
         }
     }
 
+    public static void openWorkOrderSettingsScreen(Screen previous) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new GemmaBuddyWorkOrderSettingsScreen(previous));
+        }
+    }
+
     public static void openMemoryScreen(String tab) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null) {

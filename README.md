@@ -64,6 +64,20 @@ Copy it to the `mods` folder of the matching NeoForge 1.21.1 PrismLauncher insta
 /gemmabuddy autoapprove movement on
 /gemmabuddy track status
 /gemmabuddy track guide
+/gemmabuddy progress <target>
+/gemmabuddy path <target>
+/gemmabuddy missing <target>
+/gemmabuddy craftable
+/gemmabuddy next
+/gemmabuddy work <request>
+/gemmabuddy work status
+/gemmabuddy work pause
+/gemmabuddy work resume
+/gemmabuddy work next
+/gemmabuddy work cancel
+/gemmabuddy autonomy status
+/gemmabuddy test run
+/gemmabuddy test report
 /gemmabuddy selfcheck
 ```
 
@@ -81,7 +95,36 @@ gemma follow me
 gemma find spruce log
 gemma track target
 gemma guide me
+gemma mine 8 stone
+gemma gather 6 spruce logs
+gemma build basic shelter
+gemma craft furnace
+gemma path to enchanting table
+gemma autonomy assisted
+gemma less chatty
+gemma pause work
+gemma resume work
 gemma stop
+```
+
+## Supervised Work Orders
+
+Work Orders turn small requests into deterministic, bounded scopes. Java resolves targets, checks recipes/materials, enforces distance/action/time budgets, and asks once for the complete task. Approval never expands beyond that saved scope.
+
+- Mining, gathering, building, and crafting are assisted in this release.
+- GemmaBuddy can preview, guide, track milestones, pause, resume, and stop.
+- It does not autonomously break/place blocks or manipulate inventory yet.
+- Repeated safe steps inside one approved scope do not trigger repeated approvals.
+- Interruptions are reserved for danger, missing materials, blocked paths, ambiguity, full inventory, budget limits, completion, or failure.
+- `gemma stop` immediately cancels the Work Order and pending approval.
+
+Autonomy modes are `manual`, `assisted`, `approved_batch`, `safe_auto`, and `read_only`. The current executor remains assisted even if a higher mode is selected; autonomous mining/building flags default to off.
+
+Work Order state is stored under `config/gemmabuddy/work-orders/`. Regression reports from `/gemmabuddy test run` are written to:
+
+```text
+config/gemmabuddy/test-reports/latest.json
+config/gemmabuddy/test-reports/latest.md
 ```
 
 ## LM Studio
@@ -135,7 +178,8 @@ Knowledge cards are built from local registries, recipes, tags, and reports. Mem
 - Movement requests require approval at `ask-before-action`; `safe-movement` can run them directly.
 - Only safe movement can be autoapproved in this alpha.
 - `gemma stop` clears movement, tracking, queued work, and pending approval.
-- Mining, breaking, placing, attacking, looting, inventory manipulation, and autonomous building are locked.
+- Work Orders require one explicit approval for their exact task/action/distance/time scope.
+- Mining, breaking, placing, attacking, looting, inventory manipulation, and autonomous building remain locked; their Work Orders are assisted.
 - Search only inspects inventory, remembered discoveries, and a configured loaded-area radius. It does not load chunks.
 - Building skills are plan-only.
 
@@ -165,7 +209,7 @@ Run `/gemmabuddy knowledge rebuild`, then `/gemmabuddy knowledge status`. Genera
 
 ## Known Limits
 
-- No destructive autonomous actions.
+- No destructive autonomous actions; mining/building/crafting Work Orders are assisted.
 - No unloaded-chunk or whole-world search.
 - Some mod recipes expose alternatives without precise tag names; answers state what local data knows.
 - Experimental voice depends on a compatible local transcription endpoint and remains optional.

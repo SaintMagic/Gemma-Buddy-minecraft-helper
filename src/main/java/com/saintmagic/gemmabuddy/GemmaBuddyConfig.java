@@ -43,6 +43,26 @@ public final class GemmaBuddyConfig {
     private volatile double buddyWalkSpeed;
     private volatile double buddyRunSpeed;
     private volatile double buddyRunDistanceThreshold;
+    private volatile boolean workOrdersEnabled;
+    private volatile boolean autonomousMiningEnabled;
+    private volatile boolean autonomousBuildingEnabled;
+    private volatile boolean assistedModeDefault;
+    private volatile int maxWorkOrderBlocks;
+    private volatile int maxWorkOrderDistance;
+    private volatile int maxWorkOrderSeconds;
+    private volatile boolean requireApprovalForMining;
+    private volatile boolean requireApprovalForBuilding;
+    private volatile boolean requireApprovalForHunting;
+    private volatile AutonomyMode autonomyMode;
+    private volatile String approvalScopeDefault;
+    private volatile boolean askEveryStep;
+    private volatile boolean silentDuringWork;
+    private volatile int reportProgressEverySeconds;
+    private volatile boolean reportOnlyOnMilestones;
+    private volatile int maxInterruptionsPerWorkOrder;
+    private volatile boolean autoPauseOnPlayerCombat;
+    private volatile boolean autoPauseWhenPlayerMovesFarAway;
+    private volatile boolean autoPauseOnInventoryFull;
 
     public synchronized void load() {
         applyDefaults();
@@ -83,6 +103,30 @@ public final class GemmaBuddyConfig {
             buddyRunSpeed = clamp(readDouble(object, "buddyRunSpeed", buddyRunSpeed), 0.5D, 2.5D);
             buddyRunDistanceThreshold = clamp(
                     readDouble(object, "buddyRunDistanceThreshold", buddyRunDistanceThreshold), 4.0D, 32.0D);
+            workOrdersEnabled = readBoolean(object, "workOrdersEnabled", workOrdersEnabled);
+            autonomousMiningEnabled = readBoolean(object, "autonomousMiningEnabled", autonomousMiningEnabled);
+            autonomousBuildingEnabled = readBoolean(object, "autonomousBuildingEnabled", autonomousBuildingEnabled);
+            assistedModeDefault = readBoolean(object, "assistedModeDefault", assistedModeDefault);
+            maxWorkOrderBlocks = clamp(readInt(object, "maxWorkOrderBlocks", maxWorkOrderBlocks), 1, 128);
+            maxWorkOrderDistance = clamp(readInt(object, "maxWorkOrderDistance", maxWorkOrderDistance), 4, 64);
+            maxWorkOrderSeconds = clamp(readInt(object, "maxWorkOrderSeconds", maxWorkOrderSeconds), 10, 900);
+            requireApprovalForMining = readBoolean(object, "requireApprovalForMining", requireApprovalForMining);
+            requireApprovalForBuilding = readBoolean(object, "requireApprovalForBuilding",
+                    requireApprovalForBuilding);
+            requireApprovalForHunting = readBoolean(object, "requireApprovalForHunting", requireApprovalForHunting);
+            autonomyMode = AutonomyMode.parse(readString(object, "autonomyMode", autonomyMode.configValue()));
+            approvalScopeDefault = "per_task";
+            askEveryStep = false;
+            silentDuringWork = readBoolean(object, "silentDuringWork", silentDuringWork);
+            reportProgressEverySeconds = clamp(
+                    readInt(object, "reportProgressEverySeconds", reportProgressEverySeconds), 5, 300);
+            reportOnlyOnMilestones = readBoolean(object, "reportOnlyOnMilestones", reportOnlyOnMilestones);
+            maxInterruptionsPerWorkOrder = clamp(
+                    readInt(object, "maxInterruptionsPerWorkOrder", maxInterruptionsPerWorkOrder), 1, 10);
+            autoPauseOnPlayerCombat = readBoolean(object, "autoPauseOnPlayerCombat", autoPauseOnPlayerCombat);
+            autoPauseWhenPlayerMovesFarAway = readBoolean(object, "autoPauseWhenPlayerMovesFarAway",
+                    autoPauseWhenPlayerMovesFarAway);
+            autoPauseOnInventoryFull = readBoolean(object, "autoPauseOnInventoryFull", autoPauseOnInventoryFull);
             save();
         } catch (IOException | RuntimeException ex) {
             applyDefaults();
@@ -109,6 +153,26 @@ public final class GemmaBuddyConfig {
         buddyWalkSpeed = 1.05D;
         buddyRunSpeed = 1.35D;
         buddyRunDistanceThreshold = 8.0D;
+        workOrdersEnabled = true;
+        autonomousMiningEnabled = false;
+        autonomousBuildingEnabled = false;
+        assistedModeDefault = true;
+        maxWorkOrderBlocks = 80;
+        maxWorkOrderDistance = 16;
+        maxWorkOrderSeconds = 180;
+        requireApprovalForMining = true;
+        requireApprovalForBuilding = true;
+        requireApprovalForHunting = true;
+        autonomyMode = AutonomyMode.ASSISTED;
+        approvalScopeDefault = "per_task";
+        askEveryStep = false;
+        silentDuringWork = true;
+        reportProgressEverySeconds = 20;
+        reportOnlyOnMilestones = true;
+        maxInterruptionsPerWorkOrder = 3;
+        autoPauseOnPlayerCombat = true;
+        autoPauseWhenPlayerMovesFarAway = true;
+        autoPauseOnInventoryFull = true;
     }
 
     public synchronized void save() {
@@ -135,6 +199,26 @@ public final class GemmaBuddyConfig {
             object.addProperty("buddyWalkSpeed", buddyWalkSpeed);
             object.addProperty("buddyRunSpeed", buddyRunSpeed);
             object.addProperty("buddyRunDistanceThreshold", buddyRunDistanceThreshold);
+            object.addProperty("workOrdersEnabled", workOrdersEnabled);
+            object.addProperty("autonomousMiningEnabled", autonomousMiningEnabled);
+            object.addProperty("autonomousBuildingEnabled", autonomousBuildingEnabled);
+            object.addProperty("assistedModeDefault", assistedModeDefault);
+            object.addProperty("maxWorkOrderBlocks", maxWorkOrderBlocks);
+            object.addProperty("maxWorkOrderDistance", maxWorkOrderDistance);
+            object.addProperty("maxWorkOrderSeconds", maxWorkOrderSeconds);
+            object.addProperty("requireApprovalForMining", requireApprovalForMining);
+            object.addProperty("requireApprovalForBuilding", requireApprovalForBuilding);
+            object.addProperty("requireApprovalForHunting", requireApprovalForHunting);
+            object.addProperty("autonomyMode", autonomyMode.configValue());
+            object.addProperty("approvalScopeDefault", approvalScopeDefault);
+            object.addProperty("askEveryStep", askEveryStep);
+            object.addProperty("silentDuringWork", silentDuringWork);
+            object.addProperty("reportProgressEverySeconds", reportProgressEverySeconds);
+            object.addProperty("reportOnlyOnMilestones", reportOnlyOnMilestones);
+            object.addProperty("maxInterruptionsPerWorkOrder", maxInterruptionsPerWorkOrder);
+            object.addProperty("autoPauseOnPlayerCombat", autoPauseOnPlayerCombat);
+            object.addProperty("autoPauseWhenPlayerMovesFarAway", autoPauseWhenPlayerMovesFarAway);
+            object.addProperty("autoPauseOnInventoryFull", autoPauseOnInventoryFull);
             Files.writeString(configPath, GSON.toJson(object), StandardCharsets.UTF_8);
         } catch (IOException ex) {
             LOGGER.warn("GemmaBuddy config could not be saved.", ex);
@@ -286,6 +370,144 @@ public final class GemmaBuddyConfig {
         return configPath;
     }
 
+    public boolean workOrdersEnabled() {
+        return workOrdersEnabled;
+    }
+
+    public synchronized void setWorkOrdersEnabled(boolean enabled) {
+        workOrdersEnabled = enabled;
+        save();
+    }
+
+    public boolean autonomousMiningEnabled() {
+        return autonomousMiningEnabled;
+    }
+
+    public synchronized void setAutonomousMiningEnabled(boolean enabled) {
+        autonomousMiningEnabled = enabled;
+        save();
+    }
+
+    public boolean autonomousBuildingEnabled() {
+        return autonomousBuildingEnabled;
+    }
+
+    public synchronized void setAutonomousBuildingEnabled(boolean enabled) {
+        autonomousBuildingEnabled = enabled;
+        save();
+    }
+
+    public boolean assistedModeDefault() {
+        return assistedModeDefault;
+    }
+
+    public synchronized void setAssistedModeDefault(boolean enabled) {
+        assistedModeDefault = enabled;
+        save();
+    }
+
+    public int maxWorkOrderBlocks() {
+        return maxWorkOrderBlocks;
+    }
+
+    public int maxWorkOrderDistance() {
+        return maxWorkOrderDistance;
+    }
+
+    public int maxWorkOrderSeconds() {
+        return maxWorkOrderSeconds;
+    }
+
+    public boolean requireApprovalForMining() {
+        return requireApprovalForMining;
+    }
+
+    public boolean requireApprovalForBuilding() {
+        return requireApprovalForBuilding;
+    }
+
+    public boolean requireApprovalForHunting() {
+        return requireApprovalForHunting;
+    }
+
+    public synchronized void setWorkOrderApprovals(boolean mining, boolean building, boolean hunting) {
+        requireApprovalForMining = mining;
+        requireApprovalForBuilding = building;
+        requireApprovalForHunting = hunting;
+        save();
+    }
+
+    public AutonomyMode autonomyMode() {
+        return autonomyMode;
+    }
+
+    public synchronized void setAutonomyMode(AutonomyMode mode) {
+        autonomyMode = mode == null ? AutonomyMode.ASSISTED : mode;
+        save();
+    }
+
+    public String approvalScopeDefault() {
+        return approvalScopeDefault;
+    }
+
+    public boolean askEveryStep() {
+        return askEveryStep;
+    }
+
+    public boolean silentDuringWork() {
+        return silentDuringWork;
+    }
+
+    public synchronized void setSilentDuringWork(boolean silent) {
+        silentDuringWork = silent;
+        save();
+    }
+
+    public int reportProgressEverySeconds() {
+        return reportProgressEverySeconds;
+    }
+
+    public boolean reportOnlyOnMilestones() {
+        return reportOnlyOnMilestones;
+    }
+
+    public int maxInterruptionsPerWorkOrder() {
+        return maxInterruptionsPerWorkOrder;
+    }
+
+    public boolean autoPauseOnPlayerCombat() {
+        return autoPauseOnPlayerCombat;
+    }
+
+    public boolean autoPauseWhenPlayerMovesFarAway() {
+        return autoPauseWhenPlayerMovesFarAway;
+    }
+
+    public boolean autoPauseOnInventoryFull() {
+        return autoPauseOnInventoryFull;
+    }
+
+    public synchronized void setWorkOrderReporting(int seconds, boolean milestoneOnly, int maxInterruptions) {
+        reportProgressEverySeconds = clamp(seconds, 5, 300);
+        reportOnlyOnMilestones = milestoneOnly;
+        maxInterruptionsPerWorkOrder = clamp(maxInterruptions, 1, 10);
+        save();
+    }
+
+    public synchronized void setWorkOrderPauseRules(boolean combat, boolean farAway, boolean inventoryFull) {
+        autoPauseOnPlayerCombat = combat;
+        autoPauseWhenPlayerMovesFarAway = farAway;
+        autoPauseOnInventoryFull = inventoryFull;
+        save();
+    }
+
+    public synchronized void setWorkOrderLimits(int blocks, int distance, int seconds) {
+        maxWorkOrderBlocks = clamp(blocks, 1, 128);
+        maxWorkOrderDistance = clamp(distance, 4, 64);
+        maxWorkOrderSeconds = clamp(seconds, 10, 900);
+        save();
+    }
+
     private static String normalizeProfile(String value) {
         String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
@@ -355,6 +577,28 @@ public final class GemmaBuddyConfig {
                 return valueOf(value == null ? "BOTH" : value.trim().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException ex) {
                 return BOTH;
+            }
+        }
+
+        public String configValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum AutonomyMode {
+        MANUAL,
+        ASSISTED,
+        APPROVED_BATCH,
+        SAFE_AUTO,
+        READ_ONLY;
+
+        public static AutonomyMode parse(String value) {
+            String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT)
+                    .replace('-', '_').replace(' ', '_');
+            try {
+                return valueOf(normalized);
+            } catch (IllegalArgumentException ex) {
+                return ASSISTED;
             }
         }
 

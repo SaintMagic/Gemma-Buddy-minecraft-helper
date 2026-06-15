@@ -38,7 +38,7 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         top = Math.max(6, (height - panelHeight) / 2);
         int innerWidth = Math.min(WIDTH, width - 12);
         int buttonWidth = (innerWidth - PAD * 3) / 2;
-        actionStartY = top + panelHeight - 168;
+        actionStartY = top + panelHeight - 188;
         int y = actionStartY;
 
         addActionButton("Follow", "follow", "", left + PAD, y, buttonWidth);
@@ -56,6 +56,9 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         y += 20;
         addActionButton("Approve", "approve", "", left + PAD, y, buttonWidth);
         addActionButton("Deny", "deny", "", left + PAD * 2 + buttonWidth, y, buttonWidth);
+        y += 20;
+        addActionButton("Work status", "work_status", "", left + PAD, y, buttonWidth);
+        addActionButton("Pause work", "work_pause", "", left + PAD * 2 + buttonWidth, y, buttonWidth);
         y += 20;
         addActionButton("Clear chat", "clear_chat", "", left + PAD, y, buttonWidth);
         addRenderableWidget(Button.builder(Component.literal("Settings"),
@@ -196,8 +199,10 @@ public final class GemmaBuddyMiniConsoleScreen extends Screen {
         Minecraft minecraft = Minecraft.getInstance();
         String permission = minecraft.player == null ? "offline"
                 : GemmaBuddy.safetyManager().permissionLevel(minecraft.player.getUUID());
+        String work = minecraft.player == null ? "Work: offline"
+                : GemmaBuddy.workOrderService().compactStatus(minecraft.player.getUUID());
         return fit(GemmaBuddyClient.buddyStatusLine() + " | Perm: " + permission + " | Goal: " + goal
-                + " | Track: " + target, maxWidth);
+                + " | Track: " + target + " | " + work, maxWidth);
     }
 
     private SafetyManager.PendingApprovalView pendingApproval() {

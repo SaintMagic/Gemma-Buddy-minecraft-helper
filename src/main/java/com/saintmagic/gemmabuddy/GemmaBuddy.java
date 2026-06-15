@@ -55,9 +55,14 @@ public final class GemmaBuddy {
     private static final FindService FIND_SERVICE = new FindService(KNOWLEDGE_REPOSITORY, MEMORY);
     private static final PlannerService PLANNER_SERVICE = new PlannerService();
     private static final SkillRegistry SKILL_REGISTRY = new SkillRegistry();
+    private static final ProgressionBrain PROGRESSION_BRAIN = new ProgressionBrain(KNOWLEDGE_REPOSITORY, MEMORY);
     private static final LmStudioClient LLM = new LmStudioClient(CONFIG);
+    private static final WorkOrderService WORK_ORDERS = new WorkOrderService(CONFIG, SAFETY, FIND_SERVICE,
+            KNOWLEDGE_REPOSITORY, PROGRESSION_BRAIN, MEMORY);
+    private static final RegressionTestService TESTS = new RegressionTestService();
     private static final CommandRouter COMMAND_ROUTER = new CommandRouter(ACTION_REGISTRY, GOAL_MANAGER,
-            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, MEMORY, SAFETY, FIND_SERVICE, PLANNER_SERVICE, SKILL_REGISTRY, LLM);
+            KNOWLEDGE_INDEX, KNOWLEDGE_REPOSITORY, MEMORY, SAFETY, FIND_SERVICE, PLANNER_SERVICE, SKILL_REGISTRY,
+            PROGRESSION_BRAIN, WORK_ORDERS, TESTS, LLM);
 
     public GemmaBuddy(IEventBus modEventBus) {
         CONFIG.load();
@@ -68,6 +73,7 @@ public final class GemmaBuddy {
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
         NeoForge.EVENT_BUS.addListener(this::onContainerOpen);
+        NeoForge.EVENT_BUS.addListener(this::onServerTick);
         LOGGER.info("GemmaBuddy loaded. LM Studio endpoint: {}", CONFIG.lmStudioEndpoint());
     }
 
@@ -126,6 +132,22 @@ public final class GemmaBuddy {
         return SAFETY;
     }
 
+    public static SkillRegistry skillRegistry() {
+        return SKILL_REGISTRY;
+    }
+
+    public static ProgressionBrain progressionBrain() {
+        return PROGRESSION_BRAIN;
+    }
+
+    public static WorkOrderService workOrderService() {
+        return WORK_ORDERS;
+    }
+
+    public static RegressionTestService regressionTests() {
+        return TESTS;
+    }
+
     private void onRegisterCommands(RegisterCommandsEvent event) {
         COMMAND_ROUTER.registerSlashCommands(event.getDispatcher());
     }
@@ -161,6 +183,12 @@ public final class GemmaBuddy {
             return;
         }
         player.getServer().execute(() -> rememberOpenedContainer(player, event.getContainer()));
+    }
+
+    private void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+        if (event.getServer().getTickCount() % 20 == 0) {
+            WORK_ORDERS.tick(event.getServer());
+        }
     }
 
     private void rememberOpenedContainer(ServerPlayer player,

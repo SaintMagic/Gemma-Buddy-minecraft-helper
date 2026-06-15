@@ -128,6 +128,15 @@ Status: In progress.
 - Bounded local JSON history under `config/gemmabuddy/memory/`.
 - UI status strip shows the current goal.
 
+## Phase 6.5: Deterministic Progression Brain
+
+Status: Functional alpha.
+
+- Resolves targets from the local dataverse.
+- Reports exact indexed recipe counts, craftability, missing materials, remembered sources, dependency paths, evidence, and confidence.
+- Feeds Work Orders without giving the LLM authority over counts or safety.
+- Unknown resources become find/scout suggestions rather than invented coordinates.
+
 ## Phase 7: Safe Action System
 
 Status: Functional alpha.
@@ -137,6 +146,19 @@ Status: Functional alpha.
 - Read-only actions execute directly.
 - Movement and world-affecting actions require policy checks.
 - Mining, breaking, placing, attacking, looting, and inventory manipulation remain blocked.
+
+## Phase 7.5: Supervised Work Orders + Autonomy Trust Contract
+
+Status: Assisted alpha.
+
+- One approval covers one exact bounded Work Order, never every micro-step.
+- Supports small mining/gathering scopes, a 5x5 shelter preview, assisted crafting, starter preparation, enchanting preparation, and current-goal work.
+- Budgets cover actions/blocks, distance, duration, allowed targets, and forbidden actions.
+- Pause/stop conditions include combat, player distance, full inventory, missing materials, unsafe target changes, and budget exhaustion.
+- Compact milestone reporting replaces step-by-step narration.
+- Modes: manual, assisted, approved batch, safe auto, and read-only.
+- Current limitation: world mutation remains assisted; autonomous mining/building/crafting is not enabled.
+- Regression commands cover parser, knowledge, planner, find, Work Orders, and safety.
 
 ## Phase 8: Buddy Movement and Utility Commands
 

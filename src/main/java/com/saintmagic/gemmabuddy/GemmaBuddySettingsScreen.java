@@ -111,8 +111,8 @@ public final class GemmaBuddySettingsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Config folder"),
                 button -> openFolder(config.configPath().getParent()))
                 .bounds(margin + (buttonWidth + gap) * 3, bottomY, buttonWidth, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Knowledge"),
-                button -> openFolder(Path.of(GemmaBuddy.knowledgeIndex().knowledgeRootPath())))
+        addRenderableWidget(Button.builder(Component.literal("Work Orders"),
+                button -> GemmaBuddyClient.openWorkOrderSettingsScreen(this))
                 .bounds(margin + (buttonWidth + gap) * 4, bottomY, buttonWidth, 18).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), button -> onClose())
                 .bounds(margin + (buttonWidth + gap) * 5, bottomY, buttonWidth, 18).build());

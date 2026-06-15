@@ -444,18 +444,18 @@ public final class GemmaBuddyScreen extends Screen {
         boolean visible = pending != null && !approvalDismissed;
         int panelWidth = Math.min(300, Math.max(210, layout.contentWidth - 20));
         int panelX = layout.contentX + Math.max(6, (layout.contentWidth - panelWidth) / 2);
-        int panelY = layout.contentY + Math.max(20, (layout.historyHeight - 94) / 2);
+        int panelY = layout.contentY + Math.max(10, (layout.historyHeight - 128) / 2);
         if (approveButton != null) {
             approveButton.visible = visible;
             approveButton.active = visible;
             approveButton.setX(panelX + panelWidth - 126);
-            approveButton.setY(panelY + 68);
+            approveButton.setY(panelY + 102);
         }
         if (denyButton != null) {
             denyButton.visible = visible;
             denyButton.active = visible;
             denyButton.setX(panelX + panelWidth - 58);
-            denyButton.setY(panelY + 68);
+            denyButton.setY(panelY + 102);
         }
     }
 
@@ -465,8 +465,8 @@ public final class GemmaBuddyScreen extends Screen {
         }
         int panelWidth = Math.min(300, Math.max(210, layout.contentWidth - 20));
         int panelX = layout.contentX + Math.max(6, (layout.contentWidth - panelWidth) / 2);
-        int panelY = layout.contentY + Math.max(20, (layout.historyHeight - 94) / 2);
-        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 92, 0xF0181D23);
+        int panelY = layout.contentY + Math.max(10, (layout.historyHeight - 128) / 2);
+        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 126, 0xF0181D23);
         graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 2, ScreenTheme.GOLD);
     }
 
@@ -494,17 +494,22 @@ public final class GemmaBuddyScreen extends Screen {
         }
         int panelWidth = Math.min(300, Math.max(210, layout.contentWidth - 20));
         int panelX = layout.contentX + Math.max(6, (layout.contentWidth - panelWidth) / 2);
-        int panelY = layout.contentY + Math.max(20, (layout.historyHeight - 94) / 2);
+        int panelY = layout.contentY + Math.max(10, (layout.historyHeight - 128) / 2);
         graphics.drawString(font, "Approval requested", panelX + 8, panelY + 8, ScreenTheme.GOLD, false);
         graphics.drawString(font, fitText("Action: " + pending.actionId(), panelWidth - 16),
                 panelX + 8, panelY + 22, ScreenTheme.TEXT, false);
-        graphics.drawString(font, fitText("Target: " + pending.target(), panelWidth - 16),
-                panelX + 8, panelY + 34, ScreenTheme.MUTED_TEXT, false);
+        List<FormattedCharSequence> scopeLines = font.split(Component.literal("Scope: " + pending.target()),
+                panelWidth - 16);
+        int scopeY = panelY + 34;
+        for (int index = 0; index < Math.min(4, scopeLines.size()); index++) {
+            graphics.drawString(font, scopeLines.get(index), panelX + 8, scopeY + index * 10,
+                    ScreenTheme.MUTED_TEXT, false);
+        }
         graphics.drawString(font, fitText("Safety: " + pending.safetyLevel().name().toLowerCase()
                 + " | " + pending.secondsRemaining() + "s", panelWidth - 16),
-                panelX + 8, panelY + 46, ScreenTheme.MUTED_TEXT, false);
+                panelX + 8, panelY + 76, ScreenTheme.MUTED_TEXT, false);
         graphics.drawString(font, fitText(pending.expectedEffect(), panelWidth - 16),
-                panelX + 8, panelY + 57, ScreenTheme.SYSTEM_TEXT, false);
+                panelX + 8, panelY + 88, ScreenTheme.SYSTEM_TEXT, false);
     }
 
     private SafetyManager.PendingApprovalView pendingApproval() {
@@ -551,6 +556,10 @@ public final class GemmaBuddyScreen extends Screen {
         String goalLine = GemmaBuddy.goalManager().statusLine();
         if (!goalLine.isBlank()) {
             segments.add("Goal: " + goalLine);
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            segments.add(GemmaBuddy.workOrderService().compactStatus(minecraft.player.getUUID()));
         }
         String status = fitText(String.join("  |  ", segments),
                 Math.max(80, this.width - ScreenTheme.MARGIN * 3 - this.font.width(this.title)
@@ -873,6 +882,7 @@ public final class GemmaBuddyScreen extends Screen {
             case ActionRegistry.BUDDY -> "Buddy";
             case ActionRegistry.PLANNING -> "Planning";
             case ActionRegistry.FIND -> "Find";
+            case ActionRegistry.WORK -> "Work Orders";
             case ActionRegistry.DEBUG -> "Debug";
             default -> "Basic";
         };

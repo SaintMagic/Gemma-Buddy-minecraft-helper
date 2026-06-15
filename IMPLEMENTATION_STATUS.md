@@ -23,6 +23,10 @@ Updated for the local companion alpha pass.
 - Craftable GemmaBuddy Console with compact recent-history/quick-action UI.
 - Plan-only SkillRegistry for shelter, starter tools, enchanting setup, and next-step organization.
 - Markdown and JSON documentation cards with machine/progression evidence where locally discoverable.
+- Deterministic Progression Brain with recipes, missing counts, dependency paths, remembered sources, evidence, and confidence.
+- Persistent bounded Work Orders with one-scope approval, pause/resume/cancel, budgets, interruption rules, and milestone-only reporting.
+- Categorized in-game regression runner with JSON and Markdown reports.
+- Dedicated Work Order settings screen and registry-generated Work Orders category in the G UI.
 
 ## Partial Alpha
 
@@ -32,10 +36,11 @@ Updated for the local companion alpha pass.
 - Safety: persistent permission profiles and action-task state work; world-changing execution remains intentionally locked.
 - Buddy movement: explicit modes work, but advanced path recovery and cross-dimension travel are locked.
 - Fair Find: inventory, drops, entities, loaded blocks, remembered open-container contents, and memory work.
+- Work Orders: mining, gathering, building, and crafting are validated assisted workflows; autonomous mutation is not implemented.
 
 ## Locked / Plan-Only
 
-- Mining, breaking, placing, attacking, hunting, looting, inventory manipulation, and autonomous building.
+- Autonomous mining, breaking, placing, attacking, hunting, looting, inventory manipulation, crafting, and building.
 - Whole-world or unloaded-chunk search.
 - Building skills execute as plans only.
 - Voice cannot bypass routing, safety, or approvals.
@@ -47,4 +52,6 @@ Updated for the local companion alpha pass.
 - Model reasoning is never displayed.
 - Every planner step uses a unique `action_ref`; repeated `action_id` values are allowed only as action types.
 - `gemma stop` cancels active movement, tracking, queued work, and pending approval.
+- Work Order approval applies once to an exact per-task scope; scope expansion requires a new approval.
+- Work Orders never use safe-movement autoapproval to bypass their bounded approval.
 - Missing or unavailable systems return a friendly locked/partial result rather than fake success.

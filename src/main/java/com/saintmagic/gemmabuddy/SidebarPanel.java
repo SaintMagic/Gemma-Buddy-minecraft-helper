@@ -115,6 +115,7 @@ public final class SidebarPanel {
             case ActionRegistry.BUDDY -> "Buddy";
             case ActionRegistry.PLANNING -> "Plan";
             case ActionRegistry.FIND -> "Find";
+            case ActionRegistry.WORK -> "Work";
             case ActionRegistry.DEBUG -> "Debug";
             default -> "Basic";
         };
@@ -126,6 +127,7 @@ public final class SidebarPanel {
             case ActionRegistry.BUDDY -> "B";
             case ActionRegistry.PLANNING -> "P";
             case ActionRegistry.FIND -> "F";
+            case ActionRegistry.WORK -> "W";
             case ActionRegistry.DEBUG -> "D";
             default -> "G";
         };
