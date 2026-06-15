@@ -1,8 +1,10 @@
 package com.saintmagic.gemmabuddy;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.slf4j.Logger;
 
@@ -25,6 +27,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraft.world.item.CreativeModeTabs;
 
@@ -64,6 +67,7 @@ public final class GemmaBuddy {
         modEventBus.addListener(this::onCreativeTabContents);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
+        NeoForge.EVENT_BUS.addListener(this::onContainerOpen);
         LOGGER.info("GemmaBuddy loaded. LM Studio endpoint: {}", CONFIG.lmStudioEndpoint());
     }
 
@@ -150,6 +154,37 @@ public final class GemmaBuddy {
             LOGGER.error("GemmaBuddy chat handler failed for input '{}'", stripGemmaPrefix(raw), ex);
             sendError(player, "GemmaBuddy hit an error: " + friendlyError(ex) + ". Check the log for details.");
         }
+    }
+
+    private void onContainerOpen(PlayerContainerEvent.Open event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.getServer() == null) {
+            return;
+        }
+        player.getServer().execute(() -> rememberOpenedContainer(player, event.getContainer()));
+    }
+
+    private void rememberOpenedContainer(ServerPlayer player,
+            net.minecraft.world.inventory.AbstractContainerMenu menu) {
+        ContextResolver.ResolvedContext lookedAt = ContextResolver.resolveLookedAt(player);
+        if (lookedAt == null || !"block".equals(lookedAt.type())) {
+            return;
+        }
+        int containerSlots = Math.max(0, menu.slots.size() - 36);
+        Map<String, Integer> contents = new LinkedHashMap<>();
+        for (int index = 0; index < containerSlots; index++) {
+            net.minecraft.world.item.ItemStack stack = menu.slots.get(index).getItem();
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+            if (id != null) {
+                contents.merge(id.toString(), stack.getCount(), Integer::sum);
+            }
+        }
+        MEMORY.rememberContainer(player.level().dimension().location().toString(), lookedAt.position(),
+                lookedAt.registryId(), contents);
+        LOGGER.info("GemmaBuddy remembered opened container type={} position={} itemTypes={}",
+                lookedAt.registryId(), lookedAt.position().toShortString(), contents.size());
     }
 
     public static void sendLine(ServerPlayer player, String text) {
